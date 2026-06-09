@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Client-Side Data</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    button { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    select { padding: 6px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 13px; }
+    label { font-size: 13px; display: flex; align-items: center; gap: 4px; }
+    #grid { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    #info { margin-top: 10px; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <h1>Client-Side Data Mode</h1>
+  <p class="subtitle">
+    Data lives in memory. Sort and filter are instant (TypedArray-accelerated for numbers).
+    1,000 rows — scroll, sort columns, use the filter bar, change page size.
+  </p>
+
+  <div class="controls">
+    <button onclick="loadSmall()">Load 100 rows</button>
+    <button onclick="loadMedium()">Load 1 000 rows</button>
+    <button onclick="loadLarge()">Load 100 000 rows</button>
+    <button onclick="grid.clearSort()">Clear Sort</button>
+    <button onclick="grid.clearFilter()">Clear All Filters</button>
+    <button onclick="sortBySalaryDesc()">Sort Salary ↓</button>
+    <button onclick="filterEngineering()">Filter: Engineering</button>
+    <select onchange="changePageSize(+this.value)">
+      <option value="25">25 / page</option>
+      <option value="50" selected>50 / page</option>
+      <option value="100">100 / page</option>
+      <option value="500">500 / page</option>
+    </select>
+  </div>
+
+  <div id="grid"></div>
+  <div id="info"></div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance', 'Legal'];
+    const CITIES = ['Milan', 'Rome', 'Turin', 'Naples', 'Florence', 'Bologna'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    function makeData(n) {
+      return Array.from({ length: n }, (_, i) => ({
+        id: i + 1,
+        name: `Employee ${String(i + 1).padStart(5, '0')}`,
+        department: rand(DEPTS),
+        city: rand(CITIES),
+        salary: Math.floor(30000 + Math.random() * 90000),
+        yearsExp: Math.floor(1 + Math.random() * 20),
+        rating: +(1 + Math.random() * 4).toFixed(1),
+        active: Math.random() > 0.25,
+      }));
+    }
+
+    const columns = [
+      { id: 'id',         index: 'id',         text: '#',          type: 'number',   width: 70 },
+      { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1, filterable: true },
+      { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 130, filterable: true },
+      { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 110, filterable: true },
+      { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      { id: 'yearsExp',   index: 'yearsExp',   text: 'Exp (yrs)',  type: 'number',   width: 90, align: 'right' },
+      { id: 'rating',     index: 'rating',     text: 'Rating',     type: 'number',   width: 80,
+        render: ({ value }) => {
+          const stars = Math.round(value);
+          return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+        }
+      },
+      { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean',  width: 70,
+        render: ({ value }) => value ? '<span style="color:#27ae60">●</span>' : '<span style="color:#e0e0e0">●</span>' },
+    ];
+
+    let grid = new RaccoonGrid({
+      columns,
+      data: makeData(1000),
+      height: 450,
+      filterBar: true,
+      searchBar: true,
+      searchBarPlaceholder: 'Search name, dept, city...',
+      pagination: { enabled: true, pageSize: 50, pageSizeOptions: [25, 50, 100, 500] },
+      onReady: (g) => updateInfo(g),
+    });
+
+    grid.render('#grid');
+    updateInfo(grid);
+
+    function updateInfo(g) {
+      const total = g.getData().length;
+      document.getElementById('info').textContent =
+        `Dataset: ${total.toLocaleString()} rows  ·  Try clicking column headers to sort  ·  Type in filter bar cells to filter`;
+    }
+
+    function loadSmall()  { grid.setData(makeData(100));    updateInfo(grid); }
+    function loadMedium() { grid.setData(makeData(1000));   updateInfo(grid); }
+    function loadLarge()  { grid.setData(makeData(100000)); updateInfo(grid); }
+
+    function sortBySalaryDesc() {
+      const col = grid.allColumns.find(c => c.index === 'salary');
+      if (col) grid.sort(col, 'DESC');
+    }
+
+    function filterEngineering() {
+      const col = grid.allColumns.find(c => c.index === 'department');
+      if (col) grid.filter(col, 'Engineering', '==', true);
+    }
+
+    function changePageSize(n) {
+      grid._pageSize = n;
+      grid._currentPage = 1;
+      grid._applyPagination();
+      grid._renderPagination();
+    }
+  </script>
+</body>
+</html>

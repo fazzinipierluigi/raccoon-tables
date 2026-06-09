@@ -1,0 +1,67 @@
+{
+  "name": "raccoon-tables",
+  "version": "1.0.0",
+  "description": "Raccoon Tables - High-performance data grid with client-side and server-side modes",
+  "type": "module",
+  "main": "./dist/raccoon-tables.cjs.js",
+  "module": "./dist/raccoon-tables.esm.js",
+  "browser": "./dist/raccoon-tables.iife.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/raccoon-tables.esm.js",
+      "require": "./dist/raccoon-tables.cjs.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./jquery": {
+      "import": "./dist/raccoon-tables.jquery.esm.js",
+      "require": "./dist/raccoon-tables.jquery.cjs.js",
+      "types": "./dist/jquery.d.ts"
+    },
+    "./styles/raccoon-tables.css": "./styles/raccoon-tables.css"
+  },
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:unit": "vitest --project unit",
+    "test:browser": "vitest --project browser",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "raccoon-tables",
+    "datagrid",
+    "data-grid",
+    "data grid",
+    "datatable",
+    "data-table",
+    "grid",
+    "table",
+    "virtual-scroll",
+    "server-side",
+    "ajax"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jquery": "^3.5.32",
+    "@vitest/browser": "^4.1.8",
+    "@vitest/browser-playwright": "^4.1.8",
+    "playwright": "^1.60.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "jquery": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "jquery": {
+      "optional": true
+    }
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true
+  }
+}

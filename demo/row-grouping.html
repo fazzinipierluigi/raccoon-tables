@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Row Grouping</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #2c3e50; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    button { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    #grid1, #grid2 { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <h1>Row Grouping</h1>
+  <p class="subtitle">
+    Hierarchical row grouping with expand/collapse, aggregations (sum/avg/min/max),
+    drag-to-group bar, and nested multi-level groups.
+  </p>
+
+  <!-- Single-level grouping with aggregations -->
+  <div class="section">
+    <div class="section-title">Single-level group · Department (sum salary, avg bonus)</div>
+    <div class="controls">
+      <button onclick="g1.expandAll()">Expand All</button>
+      <button onclick="g1.collapseAll()">Collapse All</button>
+      <button onclick="g1.reConfigRowGroups(['department'])">Group: Dept</button>
+      <button onclick="g1.reConfigRowGroups(['city'])">Group: City</button>
+      <button onclick="g1.reConfigRowGroups([])">No Grouping</button>
+    </div>
+    <div id="grid1"></div>
+  </div>
+
+  <!-- Multi-level nested grouping with drag-to-group bar -->
+  <div class="section">
+    <div class="section-title">Multi-level group (drag columns to bar) · Dept → City</div>
+    <div class="controls">
+      <button onclick="g2.expandAll()">Expand All</button>
+      <button onclick="g2.collapseAll()">Collapse All</button>
+      <button onclick="g2.reConfigRowGroups(['department', 'city'])">Dept → City</button>
+      <button onclick="g2.reConfigRowGroups(['city', 'department'])">City → Dept</button>
+      <button onclick="g2.reConfigRowGroups([])">No Grouping</button>
+    </div>
+    <div id="grid2"></div>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'];
+    const CITIES = ['Milan', 'Rome', 'Turin', 'Naples'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+    const data = Array.from({ length: 120 }, (_, i) => ({
+      id: i + 1,
+      name: `Employee ${i + 1}`,
+      department: rand(DEPTS),
+      city: rand(CITIES),
+      salary: Math.floor(35000 + Math.random() * 65000),
+      bonus: Math.floor(Math.random() * 12000),
+    }));
+
+    // ---- Grid 1: single-level -----------------------------------------------
+    const columns1 = [
+      { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1 },
+      { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
+      { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 110 },
+      {
+        id: 'salary', index: 'salary', text: 'Salary', type: 'currency', width: 130,
+        currency: 'EUR', minDecimal: 0, maxDecimal: 0,
+        summaryRenderer: ({ item }) => {
+          const total = item.$agValues?.salary;
+          return total != null
+            ? `<strong>Σ ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(total)}</strong>`
+            : '';
+        },
+      },
+      {
+        id: 'bonus', index: 'bonus', text: 'Bonus', type: 'currency', width: 110,
+        currency: 'EUR', minDecimal: 0, maxDecimal: 0,
+        summaryRenderer: ({ item }) => {
+          const avg = item.$agValues?.bonus;
+          return avg != null
+            ? `avg: ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(avg)}`
+            : '';
+        },
+      },
+    ];
+
+    const g1 = new RaccoonGrid({
+      columns: columns1,
+      data,
+      height: 340,
+      rowGroups: ['department'],
+      rowGroupExpanded: false,
+      defaultRowGroupSort: 'asc-string',
+      aggregations: [
+        { index: 'salary', fn: 'sum' },
+        { index: 'bonus',  fn: 'avg' },
+      ],
+    });
+    g1.render('#grid1');
+
+    // ---- Grid 2: multi-level with row group bar ----------------------------
+    const columns2 = [
+      { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1 },
+      { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
+      { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 120 },
+      {
+        id: 'salary', index: 'salary', text: 'Salary', type: 'currency', width: 130,
+        currency: 'EUR', minDecimal: 0, maxDecimal: 0,
+        summaryRenderer: ({ item }) => {
+          const v = item.$agValues?.salary;
+          return v != null ? `Σ ${v.toLocaleString('it-IT')}` : '';
+        },
+      },
+    ];
+
+    const g2 = new RaccoonGrid({
+      columns: columns2,
+      data,
+      height: 340,
+      rowGroups: ['department', 'city'],
+      rowGroupExpanded: false,
+      rowGroupBar: true,
+      rowGroupBarText: 'Drag a column header here to group by it',
+      aggregations: [{ index: 'salary', fn: 'sum' }],
+    });
+    g2.render('#grid2');
+  </script>
+</body>
+</html>

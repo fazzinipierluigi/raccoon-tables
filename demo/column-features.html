@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Column Features</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .section { margin-bottom: 30px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+    button { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    .grid-box { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #e8f4fd; border: 1px solid #b8d4f0;
+      border-radius: 12px; padding: 3px 10px; font-size: 12px; color: #1a4e8a; cursor: pointer;
+    }
+    .pill:hover { background: #d0e8f8; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <h1>Column Features</h1>
+  <p class="subtitle">
+    Column resize · Drag reorder · Show/hide via header context menu ·
+    Column groups (multi-level header) · Flex width · Column pinning
+  </p>
+
+  <!-- Resize + Drag + Show/Hide -->
+  <div class="section">
+    <div class="section-title">Resize · Drag-Reorder · Show/Hide (right-click or ⋮ button on header)</div>
+    <div class="controls">
+      <button onclick="showAll()">Show All Columns</button>
+      <button onclick="g1.hideColumn('bonus')">Hide Bonus</button>
+      <button onclick="g1.hideColumn('city')">Hide City</button>
+      <button onclick="g1.showColumn('bonus')">Show Bonus</button>
+      <button onclick="g1.showColumn('city')">Show City</button>
+      <button onclick="g1.setColumnWidth('salary', 200)">Salary → 200px</button>
+      <button onclick="g1.moveColumn('name', 'id')">Move Name ← left</button>
+    </div>
+    <div id="grid1" class="grid-box"></div>
+  </div>
+
+  <!-- Column groups (multi-level header) -->
+  <div class="section">
+    <div class="section-title">Column Groups — multi-level header spans</div>
+    <div id="grid2" class="grid-box"></div>
+  </div>
+
+  <!-- Column pinning with many columns / horizontal scroll -->
+  <div class="section">
+    <div class="section-title">Column Pinning — left &amp; right (scroll orizzontale)</div>
+    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+      Molte colonne → scroll orizzontale. Le colonne pinnate rimangono visibili mentre scorri.
+      Usa i pulsanti, il menù ⋮ (hover sull'intestazione) o il <strong>tasto destro</strong> sull'intestazione
+      per fissare / sbloccare le colonne.
+    </p>
+    <div class="controls">
+      <button onclick="g4.pinColumn('id', 'left')">📌 Pin ID Left</button>
+      <button onclick="g4.pinColumn('name', 'left')">📌 Pin Name Left</button>
+      <button onclick="g4.pinColumn('total', 'right')">📌 Pin Total Right</button>
+      <button onclick="g4.pinColumn('rating', 'right')">📌 Pin Rating Right</button>
+      <button onclick="unpinAll4()">Unpin All</button>
+    </div>
+    <div id="grid4" class="grid-box"></div>
+  </div>
+
+  <!-- Flex columns -->
+  <div class="section">
+    <div class="section-title">Flex Columns — proportional width distribution</div>
+    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+      ID: fixed 60px · Name: flex 2 · Department: flex 1 · Salary: fixed 130px.
+      Resize the window or the grid to see flex columns adapt.
+    </p>
+    <div id="grid3" class="grid-box"></div>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'];
+    const CITIES = ['Milan', 'Rome', 'Turin', 'Naples', 'Florence'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+    const makeData = n => Array.from({ length: n }, (_, i) => ({
+      id: i + 1, name: `Employee ${i + 1}`, department: rand(DEPTS), city: rand(CITIES),
+      salary: Math.floor(35000 + Math.random() * 65000),
+      bonus: Math.floor(Math.random() * 15000),
+      yearsExp: Math.floor(1 + Math.random() * 20),
+    }));
+
+    // ---- Grid 1: resize + drag + show/hide ---------------------------------
+    const g1 = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60 },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   width: 180 },
+        { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
+        { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 120 },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'yearsExp',   index: 'yearsExp',   text: 'Experience', type: 'number',   width: 100 },
+      ],
+      data: makeData(60),
+      height: 320,
+      columnResize: true,
+      columnDrag: true,
+      columnHide: true,
+      onColumnChange: ({ columns }) =>
+        console.log('Visible columns:', columns.map(c => c.id)),
+      onColumnResize: ({ column, width }) =>
+        console.log(`Resized ${column.id} → ${width}px`),
+    });
+    g1.render('#grid1');
+
+    function showAll() {
+      ['id', 'name', 'department', 'city', 'salary', 'bonus', 'yearsExp'].forEach(id => g1.showColumn(id));
+    }
+
+    // ---- Grid 2: column groups ---------------------------------------------
+    const g2 = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60 },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   width: 160 },
+        { id: 'department', index: 'department', text: 'Dept',       type: 'string',   width: 120 },
+        { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 110 },
+        { id: 'salary',     index: 'salary',     text: 'Base',       type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 100, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'yearsExp',   index: 'yearsExp',   text: 'Years',      type: 'number',   width: 80 },
+      ],
+      columnGroups: [
+        { text: 'Identity',    columns: ['id', 'name'] },
+        { text: 'Location',    columns: ['department', 'city'] },
+        { text: 'Compensation', columns: ['salary', 'bonus'] },
+        { text: 'Experience',  columns: ['yearsExp'] },
+      ],
+      data: makeData(40),
+      height: 300,
+    });
+    g2.render('#grid2');
+
+    // ---- Grid 3: flex columns ----------------------------------------------
+    const g3 = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60 },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 2 },
+        { id: 'department', index: 'department', text: 'Department', type: 'string',   flex: 1 },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 130, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      ],
+      data: makeData(40),
+      height: 300,
+    });
+    g3.render('#grid3');
+
+    // ---- Grid 4: column pinning with many columns (horizontal scroll) -------
+    const makeDataWide = n => Array.from({ length: n }, (_, i) => ({
+      id: i + 1,
+      name: `Employee ${i + 1}`,
+      department: rand(DEPTS),
+      city: rand(CITIES),
+      age: Math.floor(22 + Math.random() * 40),
+      salary: Math.floor(35000 + Math.random() * 65000),
+      bonus: Math.floor(Math.random() * 15000),
+      tax: Math.floor(5000 + Math.random() * 20000),
+      pension: Math.floor(1000 + Math.random() * 8000),
+      total: 0,
+      yearsExp: Math.floor(1 + Math.random() * 20),
+      projects: Math.floor(1 + Math.random() * 15),
+      teams: Math.floor(1 + Math.random() * 5),
+      rating: (2 + Math.random() * 3).toFixed(1),
+      manager: `Manager ${Math.floor(Math.random() * 10) + 1}`,
+      office: rand(['HQ', 'Remote', 'Branch A', 'Branch B', 'Branch C']),
+      contract: rand(['Full-time', 'Part-time', 'Contractor']),
+      country: rand(['Italy', 'Germany', 'France', 'Spain', 'UK']),
+    })).map(r => ({ ...r, total: r.salary + r.bonus - r.tax - r.pension }));
+
+    const g4AllCols = ['id','name','department','city','age','salary','bonus','tax','pension','total','yearsExp','projects','teams','rating','manager','office','contract','country'];
+
+    const g4 = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60,  pinned: 'left' },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   width: 160, pinned: 'left' },
+        { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 130 },
+        { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 110 },
+        { id: 'age',        index: 'age',        text: 'Age',        type: 'number',   width: 70 },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'tax',        index: 'tax',        text: 'Tax',        type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'pension',    index: 'pension',    text: 'Pension',    type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'total',      index: 'total',      text: 'Net Total',  type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0, pinned: 'right' },
+        { id: 'yearsExp',   index: 'yearsExp',   text: 'Experience', type: 'number',   width: 100 },
+        { id: 'projects',   index: 'projects',   text: 'Projects',   type: 'number',   width: 90 },
+        { id: 'teams',      index: 'teams',      text: 'Teams',      type: 'number',   width: 80 },
+        { id: 'rating',     index: 'rating',     text: 'Rating',     type: 'string',   width: 80 },
+        { id: 'manager',    index: 'manager',    text: 'Manager',    type: 'string',   width: 130 },
+        { id: 'office',     index: 'office',     text: 'Office',     type: 'string',   width: 100 },
+        { id: 'contract',   index: 'contract',   text: 'Contract',   type: 'string',   width: 110 },
+        { id: 'country',    index: 'country',    text: 'Country',    type: 'string',   width: 100 },
+      ],
+      data: makeDataWide(80),
+      height: 360,
+      filterBar: true,
+      columnResize: true,
+      columnDrag: true,
+    });
+    g4.render('#grid4');
+
+    function unpinAll4() {
+      g4AllCols.forEach(id => g4.pinColumn(id, false));
+    }
+  </script>
+</body>
+</html>

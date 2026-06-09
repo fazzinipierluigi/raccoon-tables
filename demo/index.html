@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Full Feature Demo</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 22px; margin-bottom: 6px; color: #2c3e50; }
+    .subtitle { color: #666; margin-bottom: 20px; font-size: 13px; }
+    .demo-nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .demo-nav a {
+      background: #4a90e2; color: #fff; text-decoration: none;
+      padding: 6px 14px; border-radius: 4px; font-size: 13px;
+    }
+    .demo-nav a:hover { background: #357abd; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    button {
+      padding: 7px 14px; border: none; border-radius: 4px;
+      background: #4a90e2; color: #fff; cursor: pointer; font-size: 13px;
+    }
+    button:hover { background: #357abd; }
+    button.danger { background: #e74c3c; }
+    button.danger:hover { background: #c0392b; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #545b62; }
+    #grid-container { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    #status { margin-top: 12px; font-size: 12px; color: #666; min-height: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Raccoon Tables — Full Feature Demo</h1>
+  <p class="subtitle">Virtual scrolling · Sort · Filter · Row groups · Editing · Selection · Pagination</p>
+
+  <nav class="demo-nav">
+    <a href="client-side.html">Client Side</a>
+    <a href="server-side.html">Server Side</a>
+    <a href="row-grouping.html">Row Grouping</a>
+    <a href="editing.html">Editing</a>
+    <a href="selection.html">Selection</a>
+    <a href="column-features.html">Column Features</a>
+    <a href="layout.html">Layout Save/Restore</a>
+  </nav>
+
+  <div class="controls">
+    <button onclick="addRow()">Add Row</button>
+    <button onclick="removeSelected()" class="danger">Remove Selected</button>
+    <button onclick="grid.expandAll()">Expand All</button>
+    <button onclick="grid.collapseAll()">Collapse All</button>
+    <button onclick="grid.clearSort()">Clear Sort</button>
+    <button onclick="grid.clearFilter()">Clear Filter</button>
+    <button onclick="grid.selectAll(true)">Select All</button>
+    <button onclick="grid.selectAll(false)" class="secondary">Deselect All</button>
+    <button onclick="grid.refresh()" class="secondary">Refresh</button>
+    <button onclick="grid.destroy(); document.getElementById('grid-container').innerHTML='<em>Grid destroyed</em>'" class="danger">Destroy</button>
+  </div>
+
+  <div id="grid-container"></div>
+  <div id="status"></div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    // Generate demo data
+    const DEPARTMENTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance', 'Operations'];
+    const STATUSES = ['active', 'inactive', 'pending'];
+    function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function makeEmployee(id) {
+      return {
+        id,
+        name: `Employee ${id}`,
+        department: rand(DEPARTMENTS),
+        salary: Math.floor(40000 + Math.random() * 80000),
+        bonus: Math.floor(Math.random() * 20000),
+        active: Math.random() > 0.3,
+        status: rand(STATUSES),
+        startDate: new Date(2015 + Math.floor(Math.random() * 9), Math.floor(Math.random() * 12), 1)
+          .toISOString().slice(0, 10),
+      };
+    }
+
+    const data = Array.from({ length: 500 }, (_, i) => makeEmployee(i + 1));
+
+    const grid = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60, sortable: true },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1,   editable: true },
+        { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0, editable: true },
+        { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 100, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean',  width: 80,
+          render: ({ value }) => `<span style="color:${value ? '#27ae60' : '#e74c3c'}">${value ? '✓' : '✗'}</span>` },
+        { id: 'status',     index: 'status',     text: 'Status',     type: 'string',   width: 100,
+          cellCls: ({ value }) => value === 'active' ? 'status-active' : value === 'pending' ? 'status-pending' : 'status-inactive',
+          cellStyle: ({ value }) => ({ fontWeight: value === 'active' ? 'bold' : 'normal' }) },
+        { id: 'startDate',  index: 'startDate',  text: 'Start Date', type: 'date',     width: 110 },
+      ],
+      data,
+      height: 480,
+      filterBar: true,
+      searchBar: true,
+      rowGroupBar: true,
+      checkboxColumn: true,
+      cellSelection: true,
+      flashChanges: true,
+      pagination: { enabled: true, pageSize: 50, pageSizeOptions: [25, 50, 100, 200] },
+      rowGroups: ['department'],
+      rowGroupExpanded: false,
+      aggregations: [
+        { index: 'salary', fn: 'sum' },
+        { index: 'bonus',  fn: 'avg' },
+      ],
+      defaultColumnWidth: 120,
+      onRowClick: ({ item }) => setStatus(`Row clicked: ${item.name}`),
+      onChange: ({ item, column, value, oldValue }) =>
+        setStatus(`Changed ${item.name}.${column.index}: ${oldValue} → ${value}`),
+      onRowSelectionChange: ({ all }) =>
+        setStatus(`${all.length} row(s) selected`),
+    });
+
+    grid.render('#grid-container');
+
+    let nextId = 501;
+    function addRow() {
+      grid.add(makeEmployee(nextId++));
+      setStatus(`Added row ${nextId - 1}`);
+    }
+
+    function removeSelected() {
+      const sel = grid.getSelectedRows();
+      if (!sel.length) { setStatus('No rows selected'); return; }
+      grid.remove(sel.map(r => r.id));
+      setStatus(`Removed ${sel.length} row(s)`);
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Selection</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .grid-row { display: flex; gap: 20px; }
+    .grid-col { flex: 1; }
+    .grid-label { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    button { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    #grid1, #grid2 { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    #sel-output {
+      margin-top: 10px; font-size: 12px; color: #333;
+      background: #f8f9fa; padding: 8px 10px; border-radius: 4px; border: 1px solid #e0e0e0;
+      min-height: 36px;
+    }
+    .tip {
+      background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px;
+      padding: 10px 14px; font-size: 13px; margin-bottom: 12px; color: #2e7d32;
+    }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <h1>Row & Cell Selection</h1>
+  <p class="subtitle">
+    Left: row checkbox selection. Right: cell range selection with keyboard shortcuts.
+  </p>
+
+  <div class="tip">
+    <strong>Cell selection shortcuts:</strong>
+    Click to select cell · Shift+Click to extend range ·
+    Click+Drag to select range · Ctrl+A = all cells ·
+    Arrow keys to navigate · Ctrl+C to copy · Delete to clear
+  </div>
+
+  <div class="grid-row">
+    <!-- Row checkbox selection -->
+    <div class="grid-col">
+      <div class="grid-label">Row Checkbox Selection</div>
+      <div class="controls">
+        <button onclick="g1.selectAll(true)">Select All</button>
+        <button onclick="g1.selectAll(false)">Deselect All</button>
+        <button onclick="getSelected()">Get Selected</button>
+      </div>
+      <div id="grid1"></div>
+      <div id="sel-output">Click rows or use the checkboxes.</div>
+    </div>
+
+    <!-- Cell range selection -->
+    <div class="grid-col">
+      <div class="grid-label">Cell Range Selection</div>
+      <div class="controls">
+        <button onclick="g2.copySelectedCells()">Copy (Ctrl+C)</button>
+        <button onclick="g2.setBlankForSelectedCells()">Clear (Delete)</button>
+        <button onclick="g2.clearCellSelection()">Deselect</button>
+      </div>
+      <div id="grid2"></div>
+    </div>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const data = Array.from({ length: 25 }, (_, i) => ({
+      id: String(i + 1),
+      name:  `Row ${i + 1}`,
+      col_a: Math.floor(Math.random() * 100),
+      col_b: Math.floor(Math.random() * 100),
+      col_c: Math.floor(Math.random() * 100),
+      col_d: Math.floor(Math.random() * 100),
+    }));
+
+    // Grid 1: row checkbox selection
+    const g1 = new RaccoonGrid({
+      columns: [
+        { id: 'name',  index: 'name',  text: 'Name',   type: 'string', flex: 1 },
+        { id: 'col_a', index: 'col_a', text: 'Value A', type: 'number', width: 90 },
+        { id: 'col_b', index: 'col_b', text: 'Value B', type: 'number', width: 90 },
+      ],
+      data: data.map(r => ({ ...r })),
+      height: 380,
+      checkboxColumn: true,
+      rowCls: item => item.$selected ? 'rt-row-selected' : '',
+      onRowSelectionChange: ({ all }) => {
+        document.getElementById('sel-output').textContent =
+          all.length === 0
+            ? 'No rows selected.'
+            : `${all.length} selected: IDs ${all.slice(0, 10).map(r => r.id).join(', ')}${all.length > 10 ? ' ...' : ''}`;
+      },
+    });
+    g1.render('#grid1');
+
+    function getSelected() {
+      const sel = g1.getSelectedRows();
+      document.getElementById('sel-output').textContent =
+        sel.length === 0
+          ? 'No rows selected.'
+          : `Selected IDs: ${sel.map(r => r.id).join(', ')}`;
+    }
+
+    // Grid 2: cell range selection + editable
+    const g2 = new RaccoonGrid({
+      columns: [
+        { id: 'name',  index: 'name',  text: 'Name',   type: 'string', width: 80 },
+        { id: 'col_a', index: 'col_a', text: 'A', type: 'number', width: 70, editable: true },
+        { id: 'col_b', index: 'col_b', text: 'B', type: 'number', width: 70, editable: true },
+        { id: 'col_c', index: 'col_c', text: 'C', type: 'number', width: 70, editable: true },
+        { id: 'col_d', index: 'col_d', text: 'D', type: 'number', width: 70, editable: true },
+      ],
+      data: data.map(r => ({ ...r })),
+      height: 380,
+      cellSelection: true,
+      flashChanges: true,
+    });
+    g2.render('#grid2');
+  </script>
+</body>
+</html>

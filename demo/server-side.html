@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Server-Side Mode</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .log-wrap { margin-top: 16px; }
+    .log-label { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
+    #request-log {
+      background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 12px;
+      padding: 12px; border-radius: 6px; height: 180px; overflow-y: auto; white-space: pre;
+    }
+    #grid { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    .info-box {
+      background: #e8f4fd; border: 1px solid #b8d4f0; border-radius: 6px;
+      padding: 12px 16px; font-size: 13px; margin-bottom: 14px; color: #1a4e8a;
+    }
+    .info-box code { background: rgba(0,0,0,.07); padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <h1>Server-Side Mode</h1>
+  <p class="subtitle">
+    Every sort, filter, page change fires an AJAX request. Requests are debounced and
+    in-flight requests are cancelled (AbortController) on new interaction.
+  </p>
+
+  <div class="info-box">
+    This demo intercepts <code>fetch()</code> and simulates a server with 10,000 rows.
+    The <strong>Request Log</strong> below shows every request body sent to the server.
+    Latency is simulated at 300ms. Try sorting, filtering, and changing pages.
+  </div>
+
+  <div id="grid"></div>
+
+  <div class="log-wrap">
+    <div class="log-label">▶ Request Log (most recent at top)</div>
+    <div id="request-log">Waiting for first request...</div>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    // ---- Mock server --------------------------------------------------------
+    const TOTAL = 10000;
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+    const SERVER_DATA = Array.from({ length: TOTAL }, (_, i) => ({
+      id: i + 1,
+      name: `Employee ${String(i + 1).padStart(5, '0')}`,
+      department: rand(DEPTS),
+      salary: Math.floor(30000 + Math.random() * 90000),
+      active: Math.random() > 0.3,
+    }));
+
+    function mockServerHandler(params) {
+      let data = SERVER_DATA.slice();
+
+      // Filter
+      if (params.filters) {
+        for (const f of params.filters) {
+          const val = String(f.value).toLowerCase();
+          data = data.filter(row => {
+            const v = String(row[f.index] ?? '').toLowerCase();
+            if (f.sign === '=')  return v.includes(val);
+            if (f.sign === '==') return v === val;
+            if (f.sign === '>')  return Number(row[f.index]) > Number(f.value);
+            if (f.sign === '<')  return Number(row[f.index]) < Number(f.value);
+            return true;
+          });
+        }
+      }
+
+      // Global search
+      if (params.globalSearch) {
+        const s = params.globalSearch.toLowerCase();
+        data = data.filter(row =>
+          Object.values(row).some(v => String(v).toLowerCase().includes(s))
+        );
+      }
+
+      // Sort
+      if (params.sort?.length) {
+        const { index, dir } = params.sort[0];
+        data = data.slice().sort((a, b) => {
+          const av = a[index], bv = b[index];
+          if (typeof av === 'number') return dir === 'ASC' ? av - bv : bv - av;
+          return dir === 'ASC'
+            ? String(av).localeCompare(String(bv))
+            : String(bv).localeCompare(String(av));
+        });
+      }
+
+      const total = data.length;
+      const page = data.slice(params.start, params.start + params.limit);
+      return { data: page, total };
+    }
+
+    // Intercept fetch
+    const _fetch = window.fetch;
+    window.fetch = (url, opts) => {
+      if (String(url).includes('/api/employees')) {
+        const params = JSON.parse(opts?.body ?? '{}');
+        logRequest(params);
+        return new Promise(resolve => setTimeout(() => {
+          const result = mockServerHandler(params);
+          resolve(new Response(JSON.stringify(result), {
+            headers: { 'Content-Type': 'application/json' },
+          }));
+        }, 300));
+      }
+      return _fetch(url, opts);
+    };
+
+    // ---- Grid ---------------------------------------------------------------
+    const grid = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: '#',          type: 'number',   width: 70 },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1 },
+        { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean',  width: 80,
+          render: ({ value }) => value ? '<span style="color:#27ae60">✓</span>' : '<span style="color:#ccc">✗</span>' },
+      ],
+      height: 420,
+      filterBar: true,
+      searchBar: true,
+      searchBarPlaceholder: 'Search all fields...',
+      serverAdapter: {
+        url: '/api/employees',
+        method: 'POST',
+        debounceMs: 300,
+      },
+      pagination: { enabled: true, pageSize: 50, pageSizeOptions: [25, 50, 100] },
+      onServerResponse: (resp) => {
+        // Could update a custom counter here
+      },
+    });
+
+    grid.render('#grid');
+
+    // ---- Log ----------------------------------------------------------------
+    const logEl = document.getElementById('request-log');
+    let logCount = 0;
+
+    function logRequest(params) {
+      logCount++;
+      const entry = `[#${logCount}] ${new Date().toLocaleTimeString()}\n${JSON.stringify(params, null, 2)}\n\n`;
+      logEl.textContent = entry + logEl.textContent;
+    }
+  </script>
+</body>
+</html>

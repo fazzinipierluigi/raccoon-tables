@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Layout Save &amp; Restore</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #2c3e50; margin-bottom: 8px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+    button {
+      padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 13px;
+    }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    button.primary { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+    button.primary:hover { background: #357abd; }
+    button.danger { background: #e74c3c; color: #fff; border-color: #e74c3c; }
+    button.danger:hover { background: #c0392b; }
+    .grid-box { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    .layout-panel {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px;
+    }
+    .panel-box {
+      background: #fff; border: 1px solid #d0d7de; border-radius: 6px; overflow: hidden;
+    }
+    .panel-header {
+      padding: 8px 12px; background: #f0f2f5; border-bottom: 1px solid #d0d7de;
+      font-size: 12px; font-weight: 600; color: #3a4a5c;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel-badge {
+      font-size: 11px; font-weight: 400; padding: 1px 6px;
+      background: #4a90e2; color: #fff; border-radius: 10px;
+    }
+    pre {
+      padding: 10px 12px; font-size: 11px; color: #2c3e50; overflow: auto;
+      max-height: 340px; white-space: pre-wrap; word-break: break-word;
+      font-family: 'Fira Code', 'Cascadia Code', Menlo, Monaco, monospace;
+    }
+    #status {
+      margin-top: 10px; font-size: 12px; color: #27ae60; min-height: 18px;
+    }
+    .hint { font-size: 12px; color: #888; margin-bottom: 10px; }
+    .pin-label {
+      display: inline-block; font-size: 10px; font-weight: 600;
+      padding: 1px 5px; border-radius: 8px; margin-left: 4px;
+      background: #e3f0ff; color: #1a4e8a;
+    }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <h1>Layout Save &amp; Restore</h1>
+  <p class="subtitle">
+    <code>grid.getLayout()</code> captures columns (order, visibility, width, pin), sort, filters,
+    pagination and row groups into a plain JSON object. <code>grid.setLayout(layout)</code> fully
+    restores it — useful for persisting personal views server-side.
+  </p>
+
+  <div class="section">
+    <div class="section-title">Try it out</div>
+    <p class="hint">
+      Sort columns, apply filters, pin some columns via the ⋮ header menu, resize columns, then click
+      <strong>Save Layout</strong>. Change the grid state and click <strong>Restore Layout</strong> to
+      bring it back. The saved JSON is shown on the right.
+    </p>
+
+    <div class="controls">
+      <button class="primary" onclick="saveLayout()">💾 Save Layout</button>
+      <button class="primary" onclick="restoreLayout()">↩ Restore Layout</button>
+      <button onclick="resetDefault()">Reset to Default</button>
+      <span style="width:1px;height:20px;background:#d0d7de;display:inline-block"></span>
+      <button onclick="applyPreset('pinned')">Preset: Pinned columns</button>
+      <button onclick="applyPreset('filtered')">Preset: Filtered &amp; sorted</button>
+      <button onclick="applyPreset('hidden')">Preset: Hidden columns</button>
+    </div>
+
+    <div id="grid" class="grid-box"></div>
+    <div id="status"></div>
+
+    <div class="layout-panel">
+      <div class="panel-box">
+        <div class="panel-header">
+          Saved Layout (localStorage)
+          <span id="save-badge" class="panel-badge" style="display:none">saved</span>
+        </div>
+        <pre id="layout-json">— not saved yet —</pre>
+      </div>
+      <div class="panel-box">
+        <div class="panel-header">Current Layout (live)</div>
+        <pre id="current-json">—</pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'];
+    const CITIES = ['Milan', 'Rome', 'Turin', 'Naples', 'Florence'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+    const makeData = n => Array.from({ length: n }, (_, i) => ({
+      id: i + 1,
+      name: `Employee ${i + 1}`,
+      department: rand(DEPTS),
+      city: rand(CITIES),
+      salary: Math.floor(35000 + Math.random() * 65000),
+      bonus: Math.floor(Math.random() * 15000),
+      yearsExp: Math.floor(1 + Math.random() * 20),
+      active: Math.random() > 0.35,
+    }));
+
+    const DEFAULT_COLUMNS = [
+      { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60 },
+      { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   width: 180 },
+      { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
+      { id: 'city',       index: 'city',       text: 'City',       type: 'string',   width: 110 },
+      { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 130, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      { id: 'yearsExp',   index: 'yearsExp',   text: 'Experience', type: 'number',   width: 100 },
+      { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean',  width: 80,
+        render: ({ value }) => `<span style="color:${value ? '#27ae60' : '#e74c3c'}">${value ? '✓' : '✗'}</span>` },
+    ];
+
+    const gridData = makeData(120);
+
+    const grid = new RaccoonGrid({
+      columns: DEFAULT_COLUMNS,
+      data: gridData,
+      height: 380,
+      filterBar: true,
+      pagination: { enabled: true, pageSize: 25, pageSizeOptions: [10, 25, 50] },
+      columnResize: true,
+      columnDrag: true,
+      columnHide: true,
+    });
+
+    grid.render('#grid');
+    updateCurrentDisplay();
+
+    // ---- Actions -----------------------------------------------------------
+
+    function saveLayout() {
+      const layout = grid.getLayout();
+      localStorage.setItem('raccoon-demo-layout', JSON.stringify(layout));
+      document.getElementById('layout-json').textContent = JSON.stringify(layout, null, 2);
+      document.getElementById('save-badge').style.display = '';
+      setStatus('Layout saved to localStorage.');
+      updateCurrentDisplay();
+    }
+
+    function restoreLayout() {
+      const raw = localStorage.getItem('raccoon-demo-layout');
+      if (!raw) { setStatus('No saved layout found. Click "Save Layout" first.'); return; }
+      const layout = JSON.parse(raw);
+      grid.setLayout(layout);
+      updateCurrentDisplay();
+      setStatus('Layout restored.');
+    }
+
+    function resetDefault() {
+      grid.setLayout({
+        columns: DEFAULT_COLUMNS.map(c => ({ id: c.id, hidden: false, width: c.width })),
+        sort: undefined,
+        filters: undefined,
+        pagination: { page: 1, pageSize: 25 },
+        rowGroups: undefined,
+      });
+      updateCurrentDisplay();
+      setStatus('Reset to default layout.');
+    }
+
+    // ---- Preset layouts (demonstrate various states) -----------------------
+
+    const PRESETS = {
+      pinned: {
+        columns: [
+          { id: 'id',         hidden: false, width: 60,  pinned: 'left' },
+          { id: 'name',       hidden: false, width: 180, pinned: 'left' },
+          { id: 'department', hidden: false, width: 140 },
+          { id: 'city',       hidden: false, width: 110 },
+          { id: 'yearsExp',   hidden: false, width: 100 },
+          { id: 'active',     hidden: false, width: 80 },
+          { id: 'bonus',      hidden: false, width: 110, pinned: 'right' },
+          { id: 'salary',     hidden: false, width: 130, pinned: 'right' },
+        ],
+        pagination: { page: 1, pageSize: 25 },
+      },
+      filtered: {
+        columns: [
+          { id: 'id',         hidden: false, width: 60 },
+          { id: 'name',       hidden: false, width: 180 },
+          { id: 'department', hidden: false, width: 140 },
+          { id: 'city',       hidden: false, width: 110 },
+          { id: 'salary',     hidden: false, width: 130 },
+          { id: 'bonus',      hidden: false, width: 110 },
+          { id: 'yearsExp',   hidden: false, width: 100 },
+          { id: 'active',     hidden: false, width: 80 },
+        ],
+        sort: [{ columnId: 'salary', dir: 'DESC' }],
+        filters: [{ columnId: 'department', value: 'Engineering', sign: '=' }],
+        pagination: { page: 1, pageSize: 25 },
+      },
+      hidden: {
+        columns: [
+          { id: 'id',         hidden: false, width: 60 },
+          { id: 'name',       hidden: false, width: 180 },
+          { id: 'department', hidden: false, width: 140 },
+          { id: 'city',       hidden: true,  width: 110 },
+          { id: 'salary',     hidden: false, width: 130 },
+          { id: 'bonus',      hidden: true,  width: 110 },
+          { id: 'yearsExp',   hidden: true,  width: 100 },
+          { id: 'active',     hidden: false, width: 80 },
+        ],
+        sort: [{ columnId: 'name', dir: 'ASC' }],
+        pagination: { page: 1, pageSize: 10 },
+      },
+    };
+
+    function applyPreset(name) {
+      grid.setLayout(PRESETS[name]);
+      updateCurrentDisplay();
+      setStatus(`Applied preset: "${name}". You can now save it.`);
+    }
+
+    // ---- Helpers -----------------------------------------------------------
+
+    function updateCurrentDisplay() {
+      document.getElementById('current-json').textContent =
+        JSON.stringify(grid.getLayout(), null, 2);
+    }
+
+    function setStatus(msg) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.textContent = '', 4000);
+    }
+  </script>
+</body>
+</html>
