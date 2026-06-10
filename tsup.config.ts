@@ -47,11 +47,10 @@ export default defineConfig([
     target: 'es2020',
     platform: 'browser'
   },
-  // jQuery plugin: ESM + CJS
+  // jQuery plugin: ESM + CJS only (IIFE omitted — jquery cannot be external in IIFE format)
   {
     entry: { 'raccoon-tables.jquery': 'src/jquery.ts' },
-    format: ['esm', 'cjs', 'iife'],
-    globalName: 'RaccoonTablesJQuery',
+    format: ['esm', 'cjs'],
     dts: true,
     sourcemap: true,
     clean: false,
@@ -61,7 +60,6 @@ export default defineConfig([
       switch (format) {
         case 'esm': return { js: '.jquery.esm.js' };
         case 'cjs': return { js: '.jquery.cjs.js' };
-        case 'iife': return { js: '.jquery.iife.js' };
         default: return { js: '.jquery.js' };
       }
     },
