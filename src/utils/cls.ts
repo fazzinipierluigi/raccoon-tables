@@ -6,6 +6,7 @@
 export const cls = {
   // Root
   wrap:                      'rt-wrap',
+  pageScroll:                'rt-page-scroll',
 
   // Search bar
   searchBar:                 'rt-search-bar',
@@ -48,6 +49,7 @@ export const cls = {
   filterFieldWrap:           'rt-filter-field-wrap',
   filterFieldSign:           'rt-filter-field-sign',
   filterFieldInput:          'rt-filter-field-input',
+  filterFieldSelect:         'rt-filter-field-select',
   filterSignList:            'rt-filter-sign-list',
   filterSignItem:            'rt-filter-sign-item',
 
@@ -66,15 +68,10 @@ export const cls = {
 
   // Cells
   cell:                      'rt-cell',
-  cellEditable:              'rt-cell-editable',
   cellSelected:              'rt-cell-selected',
-  cellFlash:                 'rt-cell-flash',
   cellCheckbox:              'rt-cell-checkbox',
   cellGroupAg:               'rt-cell-group-ag',
-
-  // Editor
-  editor:                    'rt-editor',
-  editorInput:               'rt-editor-input',
+  cellOverflow:              'rt-cell-overflow',
 
   // Column drag
   columnDragGhost:           'rt-column-drag-ghost',

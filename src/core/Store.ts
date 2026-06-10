@@ -45,6 +45,11 @@ declare global {
   }
 }
 
+// Signs that carry no value — the sign itself IS the full filter condition.
+function isValuelessSign(sign: FilterSign): boolean {
+  return sign === 'T' || sign === 'F' || sign === 'empty' || sign === '!empty' || sign === '+' || sign === '-';
+}
+
 // ---------------------------------------------------------------------------
 // Store interfaces
 // ---------------------------------------------------------------------------
@@ -610,7 +615,7 @@ export class Store {
     this.removeFilter(column, sign);
     if (oneFilterPerColumn) this.filters = this.filters.filter(f => f.column.id !== column.id);
 
-    if (value !== null) this.filters.push({ column, value, sign });
+    if (value !== null || isValuelessSign(sign)) this.filters.push({ column, value, sign });
 
     if (totalReFilterRequired) {
       this.reFilter();
@@ -634,7 +639,7 @@ export class Store {
     const data = this.data.slice();
     this.removeFilter(column, sign);
     if (oneFilterPerColumn) this.filters = this.filters.filter(f => f.column.id !== column.id);
-    if (value !== null) this.filters.push({ column, value, sign });
+    if (value !== null || isValuelessSign(sign)) this.filters.push({ column, value, sign });
 
     this.filteredData = this.filters.reduce((acc, f) => this.filterData(acc, f.column, f.value, f.sign), data);
     this.rowGroupDataForFiltering();
@@ -996,7 +1001,7 @@ export class Store {
     this.expandedGroups = {};
     const type = typeof this.rowGroupExpanded;
 
-    if (type === 'function' || type === 'boolean') {
+    if (type === 'function' || this.rowGroupExpanded === true) {
       const allGroupNames = Object.keys(
         Object.groupBy(this.data, row => row.$rowGroupValue!)
       );
@@ -1017,6 +1022,8 @@ export class Store {
             : (this.rowGroupExpanded as (g: string) => boolean)(g);
         this.expandedGroups[g] = expanded;
       }
+    } else if (this.rowGroupExpanded === false) {
+      // collapse all — expandedGroups stays empty
     } else {
       for (const g of (this.rowGroupExpanded as string[]) ?? []) {
         this.expandedGroups[g] = true;

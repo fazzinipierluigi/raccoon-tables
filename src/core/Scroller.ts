@@ -50,6 +50,9 @@ export class Scroller {
   viewHeight = 0;
   viewWidth = 0;
   totalRows = 0;
+
+  /** When true the grid scrolls with the page instead of an internal container. */
+  pageScrollMode = false;
   scrollBarWidth = 0;
 
   startRow = 0;
@@ -89,9 +92,10 @@ export class Scroller {
         const { width, height } = entry.contentRect;
         const oldH = this.viewHeight;
         const oldW = this.viewWidth;
-        this.viewHeight = height;
+        // In page-scroll mode the viewport is the window, not the body element.
+        this.viewHeight = this.pageScrollMode ? window.innerHeight : height;
         this.viewWidth = width;
-        if (oldH !== height || oldW !== width) this._onResize?.();
+        if (oldH !== this.viewHeight || oldW !== width) this._onResize?.();
       }
     });
     this._resizeObserver.observe(bodyEl);
@@ -211,6 +215,12 @@ export class Scroller {
 
   scrollTo(rowIndex: number, alignTop = true): void {
     const targetTop = rowIndex * this.rowHeight;
+    if (this.pageScrollMode && this.bodyEl) {
+      // Scroll the page so the row is visible
+      const bodyPageTop = this.bodyEl.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: bodyPageTop + targetTop, behavior: 'smooth' });
+      return;
+    }
     if (alignTop) {
       this.scrollTop = targetTop;
     } else {

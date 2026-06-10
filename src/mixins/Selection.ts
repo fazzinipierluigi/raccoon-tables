@@ -66,6 +66,8 @@ export const SelectionMixin = {
     const rowEl = this.bodyEl.querySelector<HTMLElement>(`[data-id="${item.id}"]`);
     if (!rowEl) return;
     rowEl.classList.toggle(cls.rowSelected, item.$selected === true);
+    const checkInput = rowEl.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    if (checkInput) checkInput.checked = item.$selected === true;
   },
 
   _updateSelectAllCheckbox(this: Grid): void {

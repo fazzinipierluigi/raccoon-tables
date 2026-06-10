@@ -3,13 +3,12 @@
  */
 import type { CellParams } from '../types.js';
 
-/** Render a boolean column as a checkbox (read-only or editable). */
+/** Render a boolean column as a read-only checkbox. */
 export function renderBoolean(params: CellParams): string {
-  const { value, column } = params;
+  const { value } = params;
   const checked = value === true || value === 'true' || value === 1 ? 'checked' : '';
-  const disabled = column.editable ? '' : 'disabled';
 
-  return `<input type="checkbox" class="rt-input-checkbox" ${checked} ${disabled} data-rt-bool>`;
+  return `<input type="checkbox" class="rt-input-checkbox" ${checked} disabled data-rt-bool>`;
 }
 
 /** Render a row-order cell with the 1-based row index. */

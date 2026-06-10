@@ -28,20 +28,27 @@
     button.secondary:hover { background: #545b62; }
     #grid-container { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
     #status { margin-top: 12px; font-size: 12px; color: #666; min-height: 20px; }
+    .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    .page-header h1 { margin-bottom: 0; }
   </style>
 </head>
 <body>
-  <h1>Raccoon Tables — Full Feature Demo</h1>
-  <p class="subtitle">Virtual scrolling · Sort · Filter · Row groups · Editing · Selection · Pagination</p>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="64">
+    <h1>Raccoon Tables — Full Feature Demo</h1>
+  </div>
+  <p class="subtitle">Virtual scrolling · Sort · Filter · Row groups · Selection · Pagination · i18n</p>
 
   <nav class="demo-nav">
     <a href="client-side.html">Client Side</a>
     <a href="server-side.html">Server Side</a>
     <a href="row-grouping.html">Row Grouping</a>
-    <a href="editing.html">Editing</a>
     <a href="selection.html">Selection</a>
     <a href="column-features.html">Column Features</a>
     <a href="layout.html">Layout Save/Restore</a>
+    <a href="themes.html">Themes</a>
+    <a href="i18n.html">i18n</a>
+    <a href="page-scroll.html">Page Scroll</a>
   </nav>
 
   <div class="controls">
@@ -87,9 +94,9 @@
     const grid = new RaccoonGrid({
       columns: [
         { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60, sortable: true },
-        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1,   editable: true },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1 },
         { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 140 },
-        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0, editable: true },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
         { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 100, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
         { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean',  width: 80,
           render: ({ value }) => `<span style="color:${value ? '#27ae60' : '#e74c3c'}">${value ? '✓' : '✗'}</span>` },
@@ -105,7 +112,6 @@
       rowGroupBar: true,
       checkboxColumn: true,
       cellSelection: true,
-      flashChanges: true,
       pagination: { enabled: true, pageSize: 50, pageSizeOptions: [25, 50, 100, 200] },
       rowGroups: ['department'],
       rowGroupExpanded: false,
@@ -115,8 +121,6 @@
       ],
       defaultColumnWidth: 120,
       onRowClick: ({ item }) => setStatus(`Row clicked: ${item.name}`),
-      onChange: ({ item, column, value, oldValue }) =>
-        setStatus(`Changed ${item.name}.${column.index}: ${oldValue} → ${value}`),
       onRowSelectionChange: ({ all }) =>
         setStatus(`${all.length} row(s) selected`),
     });

@@ -27,7 +27,8 @@ export const FilterMixin = {
         existing.sign = sign;
       } else {
         if (onePerColumn) this.store.filters = this.store.filters.filter(f => f.column.id !== column.id);
-        if (value !== null && value !== '') this.store.filters.push({ column, value, sign });
+        const _isValueless = sign === 'T' || sign === 'F' || sign === 'empty' || sign === '!empty' || sign === '+' || sign === '-';
+        if (value !== null && value !== '' || _isValueless) this.store.filters.push({ column, value, sign });
       }
       this._triggerServerRequest();
       this.renderHeader();
@@ -43,7 +44,7 @@ export const FilterMixin = {
     this.scroller.totalRows = this.store.getDisplayedDataTotal();
     this.scroller.scrollTo(0);
     this.renderVisibleRows();
-    this.renderHeader();
+    this._updateFilterActiveIndicators();
   },
 
   clearFilter(this: Grid, column?: ColumnDef, sign?: FilterSign): void {
@@ -79,6 +80,17 @@ export const FilterMixin = {
   // -------------------------------------------------------------------------
 
   createFilterField(this: Grid, col: ColumnDef, container: HTMLElement): HTMLElement {
+    // Boolean columns → dedicated select (True / False / Null / All)
+    if (col.type === 'boolean') {
+      return this._createBooleanFilterSelect(col);
+    }
+
+    // Lookup columns → select driven by static options or AJAX
+    if (col.filterLookup) {
+      return this._createLookupFilterSelect(col);
+    }
+
+    // ---- Standard: sign picker + text input ----
     const wrapper = div(cls.filterFieldWrap);
 
     // Sign picker button
@@ -140,11 +152,130 @@ export const FilterMixin = {
     return wrapper;
   },
 
+  _createBooleanFilterSelect(this: Grid, col: ColumnDef): HTMLElement {
+    const wrapper = div(cls.filterFieldWrap);
+    const sel = document.createElement('select');
+    sel.className = cls.filterFieldSelect;
+
+    const loc = this._locale;
+    const OPTIONS: Array<{ label: string; sign: FilterSign | '' }> = [
+      { label: loc.filterAll,   sign: '' },
+      { label: loc.filterTrue,  sign: 'T' },
+      { label: loc.filterFalse, sign: 'F' },
+      { label: 'Null / Empty',  sign: 'empty' },
+    ];
+
+    for (const opt of OPTIONS) {
+      const el = document.createElement('option');
+      el.value = opt.sign;
+      el.textContent = opt.label;
+      sel.appendChild(el);
+    }
+
+    const activeFilter = this.store.filters.find(f => f.column.id === col.id);
+    if (activeFilter) sel.value = activeFilter.sign as string;
+
+    sel.addEventListener('change', () => {
+      const sign = sel.value as FilterSign | '';
+      if (!sign) {
+        this.clearFilter(col);
+      } else {
+        this.filter(col, null, sign as FilterSign, true);
+      }
+    });
+
+    wrapper.appendChild(sel);
+    return wrapper;
+  },
+
+  _createLookupFilterSelect(this: Grid, col: ColumnDef): HTMLElement {
+    const wrapper = div(cls.filterFieldWrap);
+    const sel = document.createElement('select');
+    sel.className = cls.filterFieldSelect;
+
+    const activeFilter = this.store.filters.find(f => f.column.id === col.id);
+    const activeValue = activeFilter ? String(activeFilter.value ?? '') : '';
+
+    const addAllOption = () => {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = col.filterPlaceholder ?? this._locale.filterAll;
+      sel.appendChild(opt);
+    };
+
+    const addOptions = (options: Array<{ value: unknown; name: string }>) => {
+      sel.innerHTML = '';
+      addAllOption();
+      for (const item of options) {
+        const opt = document.createElement('option');
+        opt.value = String(item.value ?? '');
+        opt.textContent = item.name;
+        if (String(item.value ?? '') === activeValue) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (!activeValue) sel.value = '';
+    };
+
+    const lookup = col.filterLookup!;
+
+    if (lookup.options) {
+      addOptions(lookup.options);
+    } else if (lookup.url) {
+      // Show placeholder while loading
+      addAllOption();
+      const loading = document.createElement('option');
+      loading.disabled = true;
+      loading.textContent = this._locale.filterLoading;
+      sel.appendChild(loading);
+      sel.disabled = true;
+
+      const vf = lookup.valueField ?? 'value';
+      const nf = lookup.nameField ?? 'name';
+
+      let url = lookup.url;
+      if (lookup.params) {
+        const q = new URLSearchParams(lookup.params as Record<string, string>).toString();
+        url += (url.includes('?') ? '&' : '?') + q;
+      }
+
+      fetch(url)
+        .then(r => r.json())
+        .then((data: unknown) => {
+          const rows: unknown[] = Array.isArray(data) ? data : ((data as Record<string, unknown>).data as unknown[] ?? []);
+          const options = rows.map(r => ({
+            value: (r as Record<string, unknown>)[vf],
+            name: String((r as Record<string, unknown>)[nf] ?? ''),
+          }));
+          addOptions(options);
+          sel.disabled = false;
+        })
+        .catch(() => {
+          sel.disabled = false;
+          loading.textContent = this._locale.filterError;
+        });
+    } else {
+      addAllOption();
+    }
+
+    sel.addEventListener('change', () => {
+      const val = sel.value;
+      if (!val) {
+        this.clearFilter(col);
+      } else {
+        this.filter(col, val, '==', true);
+      }
+    });
+
+    wrapper.appendChild(sel);
+    return wrapper;
+  },
+
   showFilterSignList(this: Grid, col: ColumnDef, signBtn: HTMLElement, onSelect: (sign: FilterSign) => void): void {
     // Close any open sign list
     this._activeFilterSignList?.remove();
 
     const list = div(cls.filterSignList);
+    this._propagateTheme(list);
     document.body.appendChild(list);
 
     const signs = this._getSignsForColumn(col);
@@ -161,12 +292,14 @@ export const FilterMixin = {
       list.appendChild(item);
     }
 
-    // Position
+    // Position — clamp right edge to viewport
     const rect = signBtn.getBoundingClientRect();
     list.style.position = 'fixed';
     list.style.top = `${rect.bottom}px`;
-    list.style.left = `${rect.left}px`;
     list.style.zIndex = '9999';
+    const listW = list.offsetWidth;
+    const clampedLeft = Math.max(0, Math.min(rect.left, window.innerWidth - listW - 4));
+    list.style.left = `${clampedLeft}px`;
 
     this._activeFilterSignList = list;
 

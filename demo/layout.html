@@ -53,11 +53,16 @@
       padding: 1px 5px; border-radius: 8px; margin-left: 4px;
       background: #e3f0ff; color: #1a4e8a;
     }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
   </style>
 </head>
 <body>
   <a class="back" href="index.html">← Back to main demo</a>
-  <h1>Layout Save &amp; Restore</h1>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Layout Save &amp; Restore</h1>
+  </div>
   <p class="subtitle">
     <code>grid.getLayout()</code> captures columns (order, visibility, width, pin), sort, filters,
     pagination and row groups into a plain JSON object. <code>grid.setLayout(layout)</code> fully

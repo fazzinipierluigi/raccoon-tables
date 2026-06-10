@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Themes &amp; Custom Theming</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f0f2f5; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; color: #1a1a2e; }
+    h2 { font-size: 15px; font-weight: 600; color: #2c3e50; margin-bottom: 10px; }
+    .subtitle { color: #555; font-size: 13px; margin-bottom: 20px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+
+    .card {
+      background: #fff; border-radius: 8px; padding: 16px 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1); margin-bottom: 20px;
+    }
+    .card-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 12px; }
+
+    /* --- Theme switcher row --- */
+    .theme-switcher {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
+    .switcher-label { font-size: 12px; font-weight: 600; color: #555; margin-right: 4px; white-space: nowrap; }
+    .theme-btn {
+      padding: 6px 14px; border: 2px solid #d0d7de; border-radius: 20px;
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all 0.15s;
+    }
+    .theme-btn:hover { border-color: #4a90e2; color: #4a90e2; }
+    .theme-btn[data-theme="raccoon"].active  { background: #4a90e2; border-color: #4a90e2; color: #fff; }
+    .theme-btn[data-theme="material"].active { background: #1976d2; border-color: #1976d2; color: #fff; }
+    .theme-btn[data-theme="fluent"].active   { background: #0078d4; border-color: #0078d4; color: #fff; }
+    .theme-btn[data-theme="tabler"].active   { background: #206bc4; border-color: #206bc4; color: #fff; }
+    .sep { width: 1px; height: 24px; background: #d0d7de; margin: 0 4px; }
+    .dark-btn {
+      padding: 6px 14px; border: 2px solid #d0d7de; border-radius: 20px;
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all 0.15s;
+    }
+    .dark-btn:hover { border-color: #555; }
+    .dark-btn.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+
+    /* --- Two grids side by side --- */
+    .grids-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 900px) { .grids-row { grid-template-columns: 1fr; } }
+    .card-label { font-size: 12px; color: #777; margin-bottom: 6px; font-style: italic; }
+
+    /* --- themeVars panel --- */
+    .themevar-panel { display: flex; flex-direction: column; gap: 16px; }
+
+    .var-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: #888; margin-bottom: 6px;
+    }
+
+    .accent-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    .swatch {
+      width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: border-color 0.12s, transform 0.12s;
+      flex-shrink: 0;
+    }
+    .swatch:hover { transform: scale(1.15); }
+    .swatch.active { border-color: #1a1a2e; }
+
+    .color-picker-wrap {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #555;
+    }
+    input[type=color] {
+      width: 30px; height: 30px; padding: 1px; border: 1px solid #ccc;
+      border-radius: 50%; cursor: pointer; background: none;
+    }
+
+    .vars-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px 12px;
+    }
+    .var-row {
+      display: flex; align-items: center; gap: 8px; font-size: 12px;
+    }
+    .var-row label { color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .var-row input[type=color] { flex-shrink: 0; }
+    .var-row .swatch-sm {
+      width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0;
+    }
+
+    .reset-btn {
+      padding: 6px 14px; border: 1px solid #d0d7de; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 12px; color: #e74c3c;
+      border-color: #e74c3c; transition: background 0.12s;
+    }
+    .reset-btn:hover { background: #fdf0ef; }
+
+    code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+    .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Themes &amp; Custom Theming</h1>
+  </div>
+  <p class="subtitle">
+    Four built-in themes (Raccoon · Material · Fluent · Tabler) with light/dark variants.
+    Use <code>themeVars</code> to override any CSS token, or combine it with a base theme to extend it.
+  </p>
+
+  <!-- ── Built-in theme switcher ── -->
+  <div class="card">
+    <div class="card-title">Built-in themes &amp; dark mode</div>
+    <div class="theme-switcher">
+      <span class="switcher-label">Theme:</span>
+      <button class="theme-btn active" data-theme="raccoon" onclick="setThemeAll('raccoon')">🦝 Raccoon</button>
+      <button class="theme-btn" data-theme="material" onclick="setThemeAll('material')">◈ Material</button>
+      <button class="theme-btn" data-theme="fluent" onclick="setThemeAll('fluent')">⬡ Fluent</button>
+      <button class="theme-btn" data-theme="tabler" onclick="setThemeAll('tabler')">⬜ Tabler</button>
+      <div class="sep"></div>
+      <span class="switcher-label">Color:</span>
+      <button class="dark-btn" id="dark-toggle" onclick="toggleDark()">☀ Light</button>
+    </div>
+  </div>
+
+  <div class="grids-row" style="margin-bottom:20px">
+    <div>
+      <div class="card-label">Light variant</div>
+      <div id="grid-light"></div>
+    </div>
+    <div>
+      <div class="card-label">Dark variant</div>
+      <div id="grid-dark"></div>
+    </div>
+  </div>
+
+  <!-- ── themeVars customisation ── -->
+  <div class="card">
+    <div class="card-title">
+      <code>themeVars</code> — extend or replace theme tokens at runtime
+    </div>
+    <div class="themevar-panel">
+
+      <!-- Accent presets -->
+      <div>
+        <div class="var-section-title">Accent color preset</div>
+        <div class="accent-row">
+          <span style="font-size:12px;color:#888">Base theme accent →</span>
+          <span class="swatch active" id="sw-default" title="Theme default" style="background:#4a90e2" onclick="applyAccent(null, this)"></span>
+          <span class="swatch" title="Emerald" style="background:#27ae60" onclick="applyAccent('#27ae60', this)"></span>
+          <span class="swatch" title="Amethyst" style="background:#8e44ad" onclick="applyAccent('#8e44ad', this)"></span>
+          <span class="swatch" title="Carrot" style="background:#e67e22" onclick="applyAccent('#e67e22', this)"></span>
+          <span class="swatch" title="Alizarin" style="background:#e74c3c" onclick="applyAccent('#e74c3c', this)"></span>
+          <span class="swatch" title="Turquoise" style="background:#1abc9c" onclick="applyAccent('#1abc9c', this)"></span>
+          <span class="swatch" title="Midnight" style="background:#2c3e50" onclick="applyAccent('#2c3e50', this)"></span>
+          <div class="color-picker-wrap">
+            <input type="color" id="accent-picker" value="#4a90e2" title="Custom accent color"
+              oninput="applyAccentFromPicker(this.value)">
+            <span>Custom</span>
+          </div>
+          <button class="reset-btn" onclick="applyAccent(null, document.getElementById('sw-default'))">Reset</button>
+        </div>
+      </div>
+
+      <!-- Per-token color table -->
+      <div>
+        <div class="var-section-title">Individual token overrides</div>
+        <div class="vars-grid" id="vars-grid"></div>
+      </div>
+
+      <!-- Row / font dimensions -->
+      <div>
+        <div class="var-section-title">Dimensions</div>
+        <div class="row-actions">
+          <label style="font-size:12px;color:#555">Row height:</label>
+          <select id="row-height-sel" onchange="applyRowHeight(this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #ccc;border-radius:4px">
+            <option value="">Theme default</option>
+            <option value="24px">24px (compact)</option>
+            <option value="32px">32px</option>
+            <option value="40px">40px</option>
+            <option value="48px">48px</option>
+          </select>
+          <label style="font-size:12px;color:#555;margin-left:12px">Border radius:</label>
+          <select id="radius-sel" onchange="applyRadius(this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #ccc;border-radius:4px">
+            <option value="">Theme default</option>
+            <option value="0px">0px (sharp)</option>
+            <option value="4px">4px</option>
+            <option value="8px">8px</option>
+            <option value="12px">12px (rounded)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="custom-grid-wrap" style="margin-top:4px">
+        <div class="card-label">Live preview (applies <code>themeVars</code> overrides)</div>
+        <div id="grid-custom"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Code snippet ── -->
+  <div class="card">
+    <div class="card-title">Usage examples</div>
+    <pre style="font-size:12px;background:#f6f8fa;padding:14px;border-radius:6px;overflow-x:auto;line-height:1.6"><code>// Extend an existing theme — just override what you want
+const grid = new RaccoonGrid({
+  theme: 'raccoon',
+  themeVars: {
+    '--rt-color-primary':       '#27ae60',
+    '--rt-color-primary-hover': '#219a52',
+    '--rt-color-bg-selected':   'rgba(39, 174, 96, 0.12)',
+    '--rt-cell-selected-bg':    'rgba(39, 174, 96, 0.14)',
+    '--rt-cell-selected-border':'rgba(39, 174, 96, 0.50)',
+  },
+  columns: [...],
+  data: [...],
+});
+
+// Change vars at runtime (theme stays the same)
+grid.setThemeVars({
+  '--rt-color-primary': '#e74c3c',
+});
+
+// Reset all overrides
+grid.setThemeVars(undefined);
+
+// Fully custom theme (no base theme — set everything)
+const grid2 = new RaccoonGrid({
+  // no `theme:` — starts from Raccoon tokens
+  themeVars: {
+    '--rt-font-family':    '"JetBrains Mono", monospace',
+    '--rt-color-bg':       '#0d1117',
+    '--rt-color-bg-alt':   '#161b22',
+    '--rt-color-bg-header':'#21262d',
+    '--rt-color-border':   '#30363d',
+    '--rt-color-text':     '#e6edf3',
+    '--rt-color-primary':  '#58a6ff',
+    // ... set remaining tokens as needed
+  },
+  columns: [...],
+  data: [...],
+});</code></pre>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'];
+    const STATUSES = ['active', 'inactive', 'pending'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+    const makeData = n => Array.from({ length: n }, (_, i) => ({
+      id: i + 1,
+      name: `Employee ${i + 1}`,
+      department: rand(DEPTS),
+      salary: Math.floor(35000 + Math.random() * 65000),
+      bonus: Math.floor(Math.random() * 15000),
+      active: Math.random() > 0.3,
+      status: rand(STATUSES),
+    }));
+
+    const COLUMNS = [
+      { id: 'id',         index: 'id',         text: 'ID',         type: 'number',   width: 60 },
+      { id: 'name',       index: 'name',       text: 'Name',       type: 'string',   flex: 1 },
+      { id: 'department', index: 'department', text: 'Department', type: 'string',   width: 130 },
+      { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 110, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      { id: 'bonus',      index: 'bonus',      text: 'Bonus',      type: 'currency', width: 100, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean',  width: 70 },
+      { id: 'status',     index: 'status',     text: 'Status',     type: 'string',   width: 90 },
+    ];
+
+    const sharedData = makeData(60);
+
+    const BASE_CONFIG = {
+      columns: COLUMNS,
+      data: sharedData,
+      height: 320,
+      filterBar: true,
+      checkboxColumn: true,
+      pagination: { enabled: true, pageSize: 15, pageSizeOptions: [10, 15, 25] },
+    };
+
+    let currentTheme = 'raccoon';
+    let isDarkForced = false;
+
+    const gridLight = new RaccoonGrid({ ...BASE_CONFIG, theme: 'raccoon', dark: false });
+    const gridDark  = new RaccoonGrid({ ...BASE_CONFIG, theme: 'raccoon', dark: true });
+
+    gridLight.render('#grid-light');
+    gridDark.render('#grid-dark');
+
+    function setThemeAll(theme) {
+      currentTheme = theme;
+      gridLight.setTheme(theme, false);
+      gridDark.setTheme(theme, true);
+      // keep custom vars on gridCustom but update theme
+      gridCustom.setTheme(theme, isDarkForced ? true : false);
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
+      // re-propagate themeVars (setTheme doesn't touch inline styles, so they persist)
+    }
+
+    function toggleDark() {
+      isDarkForced = !isDarkForced;
+      const btn = document.getElementById('dark-toggle');
+      btn.textContent = isDarkForced ? '🌙 Dark' : '☀ Light';
+      btn.classList.toggle('active', isDarkForced);
+      gridLight.setTheme(currentTheme, isDarkForced ? true : false);
+      gridCustom.setTheme(currentTheme, isDarkForced ? true : false);
+    }
+
+    // ── themeVars live demo ──────────────────────────────────────────────────
+
+    const gridCustom = new RaccoonGrid({ ...BASE_CONFIG, theme: 'raccoon', dark: false });
+    gridCustom.render('#grid-custom');
+    gridCustom.sort(COLUMNS[0], 'ASC');
+
+    // Current override state
+    const currentVars = {};
+
+    // Accent-driven tokens — derived from a single primary color
+    function accentTokens(hex) {
+      const hover = darken(hex, 0.12);
+      const alpha = (a) => hexToRgba(hex, a);
+      return {
+        '--rt-color-primary':        hex,
+        '--rt-color-primary-hover':  hover,
+        '--rt-color-border-focus':   hex,
+        '--rt-sort-indicator-color': hex,
+        '--rt-color-bg-hover':       alpha(0.07),
+        '--rt-color-bg-selected':    alpha(0.12),
+        '--rt-cell-selected-bg':     alpha(0.14),
+        '--rt-cell-selected-border': alpha(0.50),
+      };
+    }
+
+    function applyAccent(hex, swatchEl) {
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      swatchEl.classList.add('active');
+      if (hex === null) {
+        // remove accent overrides
+        const keysToRemove = Object.keys(accentTokens('#000'));
+        keysToRemove.forEach(k => delete currentVars[k]);
+        // also clear per-token inputs for those keys
+        keysToRemove.forEach(k => {
+          const inp = document.querySelector(`[data-var="${k}"]`);
+          if (inp) inp.value = computedVar(k);
+        });
+      } else {
+        const tokens = accentTokens(hex);
+        Object.assign(currentVars, tokens);
+        // sync per-token inputs
+        for (const [k, v] of Object.entries(tokens)) {
+          const inp = document.querySelector(`[data-var="${k}"]`);
+          if (inp && isHexColor(v)) inp.value = rgbToHex(v) || v;
+        }
+      }
+      gridCustom.setThemeVars(Object.keys(currentVars).length ? {...currentVars} : undefined);
+    }
+
+    function applyAccentFromPicker(hex) {
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      document.getElementById('accent-picker').value = hex;
+      Object.assign(currentVars, accentTokens(hex));
+      gridCustom.setThemeVars({...currentVars});
+    }
+
+    function applyRowHeight(val) {
+      if (!val) {
+        delete currentVars['--rt-row-height'];
+        delete currentVars['--rt-header-height'];
+      } else {
+        currentVars['--rt-row-height'] = val;
+        currentVars['--rt-header-height'] = val;
+      }
+      gridCustom.setThemeVars(Object.keys(currentVars).length ? {...currentVars} : undefined);
+    }
+
+    function applyRadius(val) {
+      if (!val) delete currentVars['--rt-border-radius'];
+      else currentVars['--rt-border-radius'] = val;
+      gridCustom.setThemeVars(Object.keys(currentVars).length ? {...currentVars} : undefined);
+    }
+
+    // Per-token color pickers
+    const COLOR_TOKENS = [
+      '--rt-color-bg',
+      '--rt-color-bg-alt',
+      '--rt-color-bg-header',
+      '--rt-color-bg-selected',
+      '--rt-color-bg-hover',
+      '--rt-color-border',
+      '--rt-color-text',
+      '--rt-color-text-secondary',
+      '--rt-color-primary',
+      '--rt-color-danger',
+      '--rt-filter-active-color',
+    ];
+
+    const varsGrid = document.getElementById('vars-grid');
+    for (const varName of COLOR_TOKENS) {
+      const row = document.createElement('div');
+      row.className = 'var-row';
+      const label = document.createElement('label');
+      label.title = varName;
+      label.textContent = varName.replace('--rt-', '');
+      const picker = document.createElement('input');
+      picker.type = 'color';
+      picker.dataset.var = varName;
+      picker.title = varName;
+      picker.addEventListener('input', () => {
+        currentVars[varName] = picker.value;
+        gridCustom.setThemeVars({...currentVars});
+      });
+      row.appendChild(picker);
+      row.appendChild(label);
+      varsGrid.appendChild(row);
+    }
+
+    // Init pickers to computed values once grid is rendered
+    setTimeout(() => {
+      for (const varName of COLOR_TOKENS) {
+        const picker = document.querySelector(`[data-var="${varName}"]`);
+        if (!picker) continue;
+        const val = computedVar(varName);
+        const hex = rgbToHex(val);
+        if (hex) picker.value = hex;
+      }
+    }, 50);
+
+    // ── Color utilities ──────────────────────────────────────────────────────
+
+    function computedVar(varName) {
+      return getComputedStyle(gridCustom.el).getPropertyValue(varName).trim();
+    }
+
+    function isHexColor(str) { return /^#[0-9a-f]{3,8}$/i.test(str); }
+
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function darken(hex, amount) {
+      let r = parseInt(hex.slice(1,3), 16);
+      let g = parseInt(hex.slice(3,5), 16);
+      let b = parseInt(hex.slice(5,7), 16);
+      r = Math.round(r * (1 - amount)); g = Math.round(g * (1 - amount)); b = Math.round(b * (1 - amount));
+      return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+
+    function rgbToHex(val) {
+      if (!val) return null;
+      if (/^#[0-9a-f]{6}$/i.test(val)) return val;
+      const m = val.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!m) return null;
+      return '#' + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+    }
+  </script>
+</body>
+</html>

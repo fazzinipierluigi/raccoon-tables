@@ -65,6 +65,10 @@ export const BodyMixin = {
         // the element must be re-created, not just repositioned.
         if (existingEl.dataset['id'] === item.id) {
           existingEl.style.transform = `translateY(${i * rowHeight}px)`;
+          // Sync selection state — store may have changed (e.g. selectAll) without row recreation
+          existingEl.classList.toggle(cls.rowSelected, item.$selected === true);
+          const cb = existingEl.querySelector<HTMLInputElement>(`.${cls.cellCheckbox} input`);
+          if (cb) cb.checked = item.$selected === true;
           continue;
         }
         existingEl.remove();
@@ -80,6 +84,7 @@ export const BodyMixin = {
 
     this.bodyEl.appendChild(frag);
     this.updateFakeScroller();
+    this._updateStickyColumns();
   },
 
   renderRow(this: Grid, item: GridItem, rowIndex: number): HTMLElement {
@@ -103,6 +108,24 @@ export const BodyMixin = {
     rowEl.style.height = `${rowHeight}px`;
     rowEl.style.position = 'absolute';
     rowEl.style.width = `${totalW}px`;
+
+    if (this.config.checkboxColumn) {
+      const checkEl = div(cls.cellCheckbox);
+      checkEl.style.position = 'absolute';
+      checkEl.style.left = '0';
+      checkEl.style.top = '0';
+      checkEl.style.bottom = '0';
+      checkEl.style.display = 'flex';
+      checkEl.style.alignItems = 'center';
+      checkEl.style.justifyContent = 'center';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = item.$selected === true;
+      input.addEventListener('click', (e) => e.stopPropagation());
+      input.addEventListener('change', () => this.selectRow(item, input.checked));
+      checkEl.appendChild(input);
+      rowEl.appendChild(checkEl);
+    }
 
     for (const col of this.visibleColumns) {
       const cellEl = this.createCell(item, col, rowIndex);
@@ -231,6 +254,10 @@ export const BodyMixin = {
       }
     }
 
+    if (col.cellOverflow) {
+      cellEl.classList.add(cls.cellOverflow);
+    }
+
     const rawValue = col.getter
       ? col.getter({ item, column: col })
       : item[col.index!];
@@ -273,33 +300,15 @@ export const BodyMixin = {
       if (style) Object.assign(cellEl.style, style);
     }
 
-    // Flash animation class
-    if (item.$flashColumns?.has(col.index!)) {
-      cellEl.classList.add(cls.cellFlash);
-      item.$flashColumns.delete(col.index!);
-    }
-
     // Selection
     if (this.selectionMap?.has(`${rowIndex}_${col.id}`)) {
       cellEl.classList.add(cls.cellSelected);
-    }
-
-    // Editable indicator
-    if (col.editable) {
-      cellEl.classList.add(cls.cellEditable);
     }
 
     // Events
     cellEl.addEventListener('mousedown', (e) => {
       this.onCellMouseDown(e, item, col, rowIndex, cellEl);
     });
-
-    if (col.editable) {
-      cellEl.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        this.openEditorForCell(item, col, rowIndex, cellEl);
-      });
-    }
 
     return cellEl;
   },
@@ -339,17 +348,28 @@ export const BodyMixin = {
   },
 
   updateFakeScroller(this: Grid): void {
-    if (!this.fakeScrollEl) return;
     const total = this.store.getDisplayedDataTotal();
     const rowHeight = this.config.rowHeight ?? 32;
-    this.fakeScrollEl.style.height = `${total * rowHeight}px`;
     const totalW = getTotalColumnsWidth(this.visibleColumns, !!this.config.checkboxColumn, this.config.defaultColumnWidth ?? 100);
-    this.fakeScrollEl.style.width = `${totalW}px`;
+
+    if (this._pageScrollMode && this.bodyEl) {
+      // Page-scroll: body itself is the full-height spacer; fakeScroll only carries width.
+      this.bodyEl.style.height = `${total * rowHeight}px`;
+      if (this.fakeScrollEl) {
+        this.fakeScrollEl.style.height = '0';
+        this.fakeScrollEl.style.width = `${totalW}px`;
+      }
+    } else {
+      if (!this.fakeScrollEl) return;
+      this.fakeScrollEl.style.height = `${total * rowHeight}px`;
+      this.fakeScrollEl.style.width = `${totalW}px`;
+    }
   },
 
   getColumnLeft(this: Grid, col: ColumnDef): number {
     const defaultW = this.config.defaultColumnWidth ?? 100;
-    let left = 0;
+    // Checkbox column occupies the first 40px; data cells start after it
+    let left = this.config.checkboxColumn ? 40 : 0;
     for (const c of this.visibleColumns) {
       if (c.id === col.id) break;
       left += c.width ?? defaultW;
@@ -436,20 +456,79 @@ export const BodyMixin = {
     this.renderVisibleRows();
   },
 
-  flashCells(this: Grid, id: string, indexes: string[]): void {
-    const rowIndex = this.store.idRowIndexesMap.get(id);
-    if (rowIndex === undefined || !this.bodyEl) return;
+  // -------------------------------------------------------------------------
+  // Sticky pinned columns
+  // -------------------------------------------------------------------------
 
-    const rowEl = this.bodyEl.querySelector<HTMLElement>(`[data-id="${id}"]`);
-    if (!rowEl) return;
+  _updateStickyColumns(this: Grid): void {
+    if (!this.bodyEl) return;
 
-    for (const index of indexes) {
-      const cellEl = rowEl.querySelector<HTMLElement>(`[data-index="${index}"]`);
-      if (!cellEl) continue;
-      cellEl.classList.remove(cls.cellFlash);
-      // Force reflow so animation restarts
-      void cellEl.offsetWidth;
-      cellEl.classList.add(cls.cellFlash);
+    const defaultW = this.config.defaultColumnWidth ?? 100;
+
+    // Build sticky offset maps for this render pass
+    const stickyLeftMap = new Map<string, number>();   // colId → left offset from row origin
+    const stickyRightMap = new Map<string, number>();  // colId → cumulative width from right edge
+
+    for (const col of this.visibleColumns) {
+      if (col.pinned === 'left') {
+        stickyLeftMap.set(col.id, this.getColumnLeft(col));
+      }
+    }
+
+    // Right-pinned columns are sorted to the END of visibleColumns
+    let cumulRight = 0;
+    for (let i = this.visibleColumns.length - 1; i >= 0; i--) {
+      const col = this.visibleColumns[i];
+      if (col.pinned !== 'right') break;
+      cumulRight += col.width ?? defaultW;
+      stickyRightMap.set(col.id, cumulRight);
+    }
+
+    if (stickyLeftMap.size === 0 && stickyRightMap.size === 0) return;
+
+    const scrollLeft = this.bodyEl.scrollLeft;
+    const viewportW = this.bodyEl.clientWidth;
+
+    // Update body data cells
+    const pinnedCells = this.bodyEl.querySelectorAll<HTMLElement>(
+      `.${cls.cellPinnedLeft},.${cls.cellPinnedRight}`
+    );
+    for (const cell of pinnedCells) {
+      const colId = cell.dataset['colId']!;
+      const leftOffset = stickyLeftMap.get(colId);
+      if (leftOffset !== undefined) {
+        cell.style.left = `${scrollLeft + leftOffset}px`;
+      } else {
+        const rightCumul = stickyRightMap.get(colId);
+        if (rightCumul !== undefined) {
+          cell.style.left = `${scrollLeft + viewportW - rightCumul}px`;
+        }
+      }
+    }
+
+    // Update header and filter bar cells (flex children — use transform to counter row translation)
+    if (!this.headerEl) return;
+
+    const headerPinnedCells = this.headerEl.querySelectorAll<HTMLElement>(
+      `.${cls.headerCellPinnedLeft},.${cls.filterBarCellPinnedLeft},.${cls.headerCellPinnedRight},.${cls.filterBarCellPinnedRight}`
+    );
+    for (const cell of headerPinnedCells) {
+      const colId = cell.dataset['colId']!;
+      const leftOffset = stickyLeftMap.get(colId);
+      if (leftOffset !== undefined) {
+        // Counter the row's translateX(-scrollLeft) so the cell stays at its natural position
+        cell.style.transform = `translateX(${scrollLeft}px)`;
+      } else {
+        const rightCumul = stickyRightMap.get(colId);
+        if (rightCumul !== undefined) {
+          const col = this.columnsById[colId];
+          if (!col) continue;
+          // Natural flex position in header row: sum of all preceding col widths + checkbox offset
+          // getColumnLeft() already includes checkbox offset
+          const naturalLeft = this.getColumnLeft(col);
+          cell.style.transform = `translateX(${scrollLeft + viewportW - rightCumul - naturalLeft}px)`;
+        }
+      }
     }
   },
 };

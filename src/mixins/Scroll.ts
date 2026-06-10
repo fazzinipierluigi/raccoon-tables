@@ -20,22 +20,53 @@ export const ScrollMixin = {
   initScrollListeners(this: Grid): void {
     if (!this.bodyEl) return;
 
-    // Native scroll (scrollbar drag)
-    this.bodyEl.addEventListener('scroll', () => this._onNativeScroll(), { passive: true });
+    if (this._pageScrollMode) {
+      // Page-scroll mode: vertical is handled by the browser / window scroll.
+      // Only intercept horizontal wheel and body horizontal scroll (for header sync).
+      this.bodyEl.addEventListener('scroll', () => this._onNativeScroll(), { passive: true });
+      this.bodyEl.addEventListener('wheel', (e) => this._onMouseWheelHorizontal(e), { passive: false });
+      this.bodyEl.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: true });
+      this.bodyEl.addEventListener('touchmove', (e) => this._onTouchMoveHorizontal(e), { passive: false });
+      this.bodyEl.addEventListener('touchend', () => this._onTouchEnd(), { passive: true });
 
-    // Wheel
-    this.bodyEl.addEventListener('wheel', (e) => this._onMouseWheel(e), { passive: false });
+      // Window scroll drives virtual row range
+      const onWindowScroll = () => this._onWindowScroll();
+      window.addEventListener('scroll', onWindowScroll, { passive: true });
+      // Store for cleanup — stash on this so destroy() can remove it
+      this._windowScrollHandler = onWindowScroll;
+    } else {
+      // Fixed-height mode: body is the scroll container.
+      this.bodyEl.addEventListener('scroll', () => this._onNativeScroll(), { passive: true });
+      this.bodyEl.addEventListener('wheel', (e) => this._onMouseWheel(e), { passive: false });
+      this.bodyEl.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: true });
+      this.bodyEl.addEventListener('touchmove', (e) => this._onTouchMove(e), { passive: false });
+      this.bodyEl.addEventListener('touchend', () => this._onTouchEnd(), { passive: true });
+    }
+  },
 
-    // Touch
-    this.bodyEl.addEventListener('touchstart', (e) => this._onTouchStart(e), { passive: true });
-    this.bodyEl.addEventListener('touchmove', (e) => this._onTouchMove(e), { passive: false });
-    this.bodyEl.addEventListener('touchend', () => this._onTouchEnd(), { passive: true });
+  _onWindowScroll(this: Grid): void {
+    if (!this.bodyEl) return;
+    // scrollTop relative to body = how far the top of the body is above the viewport
+    const bodyRect = this.bodyEl.getBoundingClientRect();
+    const scrollTop = Math.max(0, -bodyRect.top);
+    this.scroller.viewHeight = window.innerHeight;
+    const changed = this.scroller.onScroll(scrollTop, this.bodyEl.scrollLeft);
+    this._syncHeaderScroll();
+    this._updateStickyColumns();
+    if (!changed) return;
+    const range = this.scroller.generateNewRange();
+    if (range) this.renderVisibleRows();
   },
 
   _onNativeScroll(this: Grid): void {
     if (!this.bodyEl) return;
-    const changed = this.scroller.onScroll(this.bodyEl.scrollTop, this.bodyEl.scrollLeft);
+    // In page-scroll mode this only fires on horizontal body scroll
+    const scrollTop = this._pageScrollMode
+      ? Math.max(0, -(this.bodyEl.getBoundingClientRect().top))
+      : this.bodyEl.scrollTop;
+    const changed = this.scroller.onScroll(scrollTop, this.bodyEl.scrollLeft);
     this._syncHeaderScroll();
+    this._updateStickyColumns();
     if (!changed) return;
     const range = this.scroller.generateNewRange();
     if (range) this.renderVisibleRows();
@@ -47,13 +78,10 @@ export const ScrollMixin = {
     const deltaY = e.deltaY;
     const deltaX = e.deltaX;
 
-    let prevented = false;
-
     if (Math.abs(deltaY) >= Math.abs(deltaX)) {
       const changed = this.scroller.deltaChange(deltaY);
       if (changed) {
         e.preventDefault();
-        prevented = true;
         const range = this.scroller.generateNewRange();
         if (range) this.renderVisibleRows();
       }
@@ -61,8 +89,24 @@ export const ScrollMixin = {
       const changed = this.scroller.horizontalDeltaChange(deltaX);
       if (changed) {
         e.preventDefault();
-        prevented = true;
-        const range = this.scroller.getColumnsViewRange();
+        this.scroller.getColumnsViewRange();
+        this._syncHeaderScroll();
+        this._updateStickyColumns();
+        this.renderVisibleRows();
+      }
+    }
+  },
+
+  _onMouseWheelHorizontal(this: Grid, e: WheelEvent): void {
+    // In page-scroll mode only handle horizontal wheel; vertical goes to the page.
+    if (e.ctrlKey) return;
+    const deltaX = e.deltaX;
+    if (Math.abs(deltaX) > Math.abs(e.deltaY)) {
+      const changed = this.scroller.horizontalDeltaChange(deltaX);
+      if (changed) {
+        e.preventDefault();
+        this._syncHeaderScroll();
+        this._updateStickyColumns();
         this.renderVisibleRows();
       }
     }
@@ -101,14 +145,38 @@ export const ScrollMixin = {
     this._touchLastY = touch.clientY;
     this._touchLastX = touch.clientX;
 
-    const changed = Math.abs(deltaY) > Math.abs(deltaX)
+    const isVertical = Math.abs(deltaY) > Math.abs(deltaX);
+    const changed = isVertical
       ? this.scroller.deltaChange(deltaY)
       : this.scroller.horizontalDeltaChange(deltaX);
 
     if (changed) {
       e.preventDefault();
+      this._syncHeaderScroll();
+      this._updateStickyColumns();
       const range = this.scroller.generateNewRange();
       if (range) this.renderVisibleRows();
+    }
+  },
+
+  _onTouchMoveHorizontal(this: Grid, e: TouchEvent): void {
+    // Page-scroll mode: only intercept horizontal swipe; let vertical go to the page.
+    const touch = e.touches[0];
+    const deltaX = this._touchLastX - touch.clientX;
+    const deltaY = this._touchLastY - touch.clientY;
+
+    this._touchVelocityX = deltaX;
+    this._touchLastX = touch.clientX;
+    this._touchLastY = touch.clientY;
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      const changed = this.scroller.horizontalDeltaChange(deltaX);
+      if (changed) {
+        e.preventDefault();
+        this._syncHeaderScroll();
+        this._updateStickyColumns();
+        this.renderVisibleRows();
+      }
     }
   },
 
@@ -131,6 +199,8 @@ export const ScrollMixin = {
         : this.scroller.horizontalDeltaChange(this._touchVelocityX);
 
       if (changed) {
+        this._syncHeaderScroll();
+        this._updateStickyColumns();
         const range = this.scroller.generateNewRange();
         if (range) this.renderVisibleRows();
       }

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="raccoon_tables_logo.png" alt="Raccoon Tables" width="100">
+</p>
+
 # Raccoon Tables — Server-Side API Specification
 
 Questo documento descrive il protocollo di comunicazione tra il plugin **Raccoon Tables** e il server quando viene usata la modalità server-side (`serverAdapter`). È pensato per chi deve implementare il lato server (controller, repository, DTO) in qualsiasi linguaggio.
@@ -146,6 +150,17 @@ Il campo `sign` può assumere uno dei seguenti valori:
 | `in` | In list | Il valore è presente nell'array `value` | tutti | `value` deve essere un array |
 | `T` | True | Il campo booleano è `true` | boolean | `value` ignorato |
 | `F` | False | Il campo booleano è `false` | boolean | `value` ignorato |
+| `empty` | Null/Empty | Il valore è `null`, `undefined` o stringa vuota | tutti | `value` ignorato |
+
+> **Filtro booleano**: quando una colonna ha `type: 'boolean'`, la filter bar mostra una `<select>` con opzioni
+> All / True / False / Null; i valori `T`, `F`, `empty` vengono inviati corrispondentemente come `sign`.
+
+> **Filtro lookup (dropdown)**: quando una colonna ha `filterLookup` configurato, la filter bar mostra una
+> `<select>` caricata da un array statico o via AJAX. Il filtro usa sempre `sign: "=="` (uguaglianza esatta).
+> È il pattern ideale per colonne foreign-key: l'utente sceglie un'etichetta, il valore inviato al server
+> è la chiave esatta (es. un ID numerico o una stringa normalizzata).
+>
+> Esempio: colonna `role_id` con lookup — il server riceve `{ "index": "role_id", "value": "2", "sign": "==" }`.
 
 ### Esempi di `FilterItem`
 

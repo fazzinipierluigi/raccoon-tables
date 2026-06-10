@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Internationalisation (i18n)</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+    button { padding: 6px 14px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    button.active { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+    label { font-size: 13px; }
+    #grid { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    .locale-label { font-size: 12px; color: #999; margin-left: 4px; }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Internationalisation (i18n)</h1>
+  </div>
+  <p class="subtitle">
+    Switch locale to see all built-in labels (pagination, filter bar, column menu, row group bar) translated.
+    Supported out of the box: English, Italian, Spanish, French, German.
+  </p>
+
+  <div class="controls">
+    <label>Locale:</label>
+    <button class="active" onclick="switchLocale('en', this)">🇬🇧 EN</button>
+    <button onclick="switchLocale('it', this)">🇮🇹 IT</button>
+    <button onclick="switchLocale('es', this)">🇪🇸 ES</button>
+    <button onclick="switchLocale('fr', this)">🇫🇷 FR</button>
+    <button onclick="switchLocale('de', this)">🇩🇪 DE</button>
+  </div>
+
+  <div id="grid"></div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    function makeData(n) {
+      return Array.from({ length: n }, (_, i) => ({
+        id: i + 1,
+        name: `Employee ${i + 1}`,
+        department: rand(DEPTS),
+        salary: 30000 + Math.floor(Math.random() * 70000),
+        active: Math.random() > 0.3,
+        hireDate: new Date(2015 + Math.floor(Math.random() * 9), Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28))
+          .toISOString().slice(0, 10),
+      }));
+    }
+
+    let grid = null;
+
+    function buildGrid(locale) {
+      if (grid) grid.destroy();
+      document.getElementById('grid').innerHTML = '';
+
+      grid = new RaccoonGrid({
+        data: makeData(200),
+        locale,
+        height: 420,
+        filterBar: true,
+        rowGroupBar: true,
+        pagination: { enabled: true, pageSize: 25, pageSizeOptions: [10, 25, 50] },
+        columns: [
+          { id: 'id',   index: 'id',         text: 'ID',         type: 'number', width: 60 },
+          { id: 'name', index: 'name',        text: 'Name',       type: 'string', flex: true },
+          { id: 'dept', index: 'department',  text: 'Department', type: 'string', width: 130,
+            filterLookup: { options: DEPTS.map(d => ({ value: d, name: d })) } },
+          { id: 'sal',  index: 'salary',      text: 'Salary',     type: 'currency', width: 110, currency: 'EUR' },
+          { id: 'act',  index: 'active',      text: 'Active',     type: 'boolean', width: 80 },
+          { id: 'hire', index: 'hireDate',    text: 'Hire Date',  type: 'string', width: 110 },
+        ],
+      });
+
+      grid.render('#grid');
+    }
+
+    function switchLocale(locale, btn) {
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      buildGrid(locale);
+    }
+
+    buildGrid('en');
+  </script>
+</body>
+</html>

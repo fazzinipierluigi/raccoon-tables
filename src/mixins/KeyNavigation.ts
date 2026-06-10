@@ -5,17 +5,12 @@
  *   Arrow keys      — move active cell
  *   Page Up/Down    — jump by page
  *   Home/End        — first/last row
- *   Enter           — open editor for active cell
- *   Escape          — cancel editor / clear selection
- *   Ctrl+C          — copy selected cells
- *   Ctrl+V          — paste into active cell (if editable)
+ *   Escape          — clear cell selection
  *   Ctrl+A          — select all cells in range
- *   Delete/Backspace — clear selected cells
- *   Printable char  — start editing active cell
  */
 
 import type { RaccoonGrid } from '../RaccoonGrid.js';
-import { KEY, isPrintableKey } from '../utils/key.js';
+import { KEY } from '../utils/key.js';
 
 type Grid = RaccoonGrid<Record<string, unknown>>;
 
@@ -28,24 +23,10 @@ export const KeyNavigationMixin = {
   },
 
   _onBodyKeyDown(this: Grid, e: KeyboardEvent): void {
-    if (this._activeEditor) return; // editor handles its own keys
-
     const page = Math.floor((this.scroller.viewHeight) / (this.config.rowHeight ?? 32));
 
     if (e.ctrlKey || e.metaKey) {
       switch (e.key.toLowerCase()) {
-        case KEY.C:
-          e.preventDefault();
-          this.copySelectedCells();
-          return;
-
-        case KEY.V:
-          e.preventDefault();
-          if (navigator.clipboard) {
-            navigator.clipboard.readText().then(text => this.insertCopiedCells(text)).catch(() => {});
-          }
-          return;
-
         case KEY.A:
           e.preventDefault();
           if (this.activeCell) {
@@ -109,27 +90,12 @@ export const KeyNavigationMixin = {
         );
         break;
 
-      case KEY.ENTER:
-        e.preventDefault();
-        this._openEditorForActiveCell();
-        break;
-
       case KEY.ESCAPE:
         e.preventDefault();
-        this.cancelEdit();
         this.clearCellSelection();
         break;
 
-      case KEY.DELETE:
-      case KEY.BACKSPACE:
-        e.preventDefault();
-        this.setBlankForSelectedCells();
-        break;
-
       default:
-        if (isPrintableKey(e)) {
-          this._openEditorForActiveCell(e.key);
-        }
         break;
     }
   },
@@ -142,27 +108,5 @@ export const KeyNavigationMixin = {
     const ci = Math.max(0, Math.min(maxCol, colIndex));
 
     this.setActiveCell(ri, ci);
-  },
-
-  _openEditorForActiveCell(this: Grid, initialChar?: string): void {
-    if (!this.activeCell || !this.bodyEl) return;
-    const { rowIndex, colIndex, item, col } = this.activeCell;
-    if (!col.editable) return;
-
-    const rowEl = this.bodyEl.querySelector<HTMLElement>(`[data-row-index="${rowIndex}"]`);
-    const cellEl = rowEl?.querySelector<HTMLElement>(`[data-col-id="${col.id}"]`);
-    if (!cellEl) return;
-
-    this.openEditorForCell(item, col, rowIndex, cellEl);
-
-    // If started by printing a char, clear input and set char
-    if (initialChar && this._activeEditor) {
-      const inp = this._activeEditor.editorEl instanceof HTMLInputElement
-        ? this._activeEditor.editorEl
-        : this._activeEditor.editorEl.querySelector('input') as HTMLInputElement | null;
-      if (inp && inp.type !== 'checkbox') {
-        inp.value = initialChar;
-      }
-    }
   },
 };

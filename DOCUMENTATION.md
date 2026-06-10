@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="raccoon_tables_logo.png" alt="Raccoon Tables" width="100">
+</p>
+
 # Raccoon Tables — Exhaustive AI Documentation
 
 > **Purpose of this document**: Provide a complete, unambiguous description of the Raccoon Tables library for AI model consumption. Every public API, configuration option, internal algorithm, and architectural decision is described here. Where behavior is non-obvious, the reason is stated explicitly.
@@ -19,8 +23,7 @@
 11. [Row Grouping](#11-row-grouping)
 12. [Sorting](#12-sorting)
 13. [Filtering](#13-filtering)
-14. [Inline Editing](#14-inline-editing)
-15. [Cell Selection](#15-cell-selection)
+14. [Cell Selection](#15-cell-selection)
 16. [Virtual Scrolling (Scroller)](#16-virtual-scrolling-scroller)
 17. [Store (Data Layer)](#17-store-data-layer)
 18. [jQuery Plugin](#18-jquery-plugin)
@@ -38,7 +41,7 @@
 - Large datasets via virtual scrolling (only visible rows in the DOM)
 - Client-side data: sort, filter, group, paginate in-memory
 - Server-side data: all interactions delegated to an AJAX endpoint
-- Inline cell editing, cell range selection, clipboard copy/paste
+- Cell range selection
 - Column resize, drag-reorder, show/hide
 - Multi-level column groups, row grouping (nested), aggregations
 - Row checkbox selection, keyboard navigation
@@ -63,7 +66,6 @@ RaccoonGrid.prototype ← BodyMixin
                       ← SortMixin
                       ← FilterMixin
                       ← ColumnMixin
-                      ← EditMixin
                       ← SelectionMixin
                       ← KeyNavigationMixin
                       ← ScrollMixin
@@ -96,7 +98,6 @@ This preserves property descriptors (important for getters/setters if any are ad
 | Sort            | `mixins/Sort.ts`                 | Grid-level sort API, delegates to Store             |
 | Filter          | `mixins/Filter.ts`               | Grid-level filter API, FilterField factory          |
 | Column          | `mixins/Column.ts`               | Column lifecycle: show/hide/move/flex               |
-| Edit            | `mixins/Edit.ts`                 | Inline editing, clipboard                           |
 | Selection       | `mixins/Selection.ts`            | Row checkbox, cell range                            |
 | KeyNav          | `mixins/KeyNavigation.ts`        | Keyboard navigation                                 |
 | Scroll          | `mixins/Scroll.ts`               | Native scroll, wheel, touch events                  |
@@ -149,7 +150,6 @@ raccoon-tables/
 │   │   ├── Sort.ts         Sort API
 │   │   ├── Filter.ts       Filter API + FilterField factory
 │   │   ├── Column.ts       Column lifecycle
-│   │   ├── Edit.ts         Inline editing, clipboard
 │   │   ├── Selection.ts    Row + cell selection
 │   │   ├── KeyNavigation.ts Keyboard navigation
 │   │   ├── Scroll.ts       Scroll event handling
@@ -298,10 +298,38 @@ All fields optional except `columns`.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `height` | `number` | fills container | Body height in pixels. |
+| `height` | `number` | — | Fixed container height in pixels. **When omitted the grid enters page-scroll mode** (see below). |
 | `width` | `number` | fills container | Grid width in pixels. |
 | `rowHeight` | `number` | `32` | Height in pixels of every data row. Must be uniform (virtual scroll requirement). |
 | `defaultColumnWidth` | `number` | `100` | Default column width when `width` and `flex` are not set. |
+
+#### Page-scroll mode vs fixed-height mode
+
+| Mode | When | Behaviour |
+|------|------|-----------|
+| **Page-scroll** (default) | `height` not set | The grid grows to its full data height. The user scrolls the **page**. The header sticks to the top of the viewport. Virtual scroll is active — only visible rows are in the DOM. |
+| **Fixed-height** | `height: N` | Classic container scroll. The `.rt-wrap` element has a fixed pixel height, the body overflows with a scrollbar. |
+
+```typescript
+// Page-scroll (default) — no height needed
+new RaccoonGrid({ columns: [...], data: rows }).render('#app');
+
+// Fixed-height / internal scroll
+new RaccoonGrid({ height: 500, columns: [...], data: rows }).render('#app');
+
+// Page-scroll + pagination — body is pageSize × rowHeight tall; page changes scroll back to grid top
+new RaccoonGrid({
+  columns: [...],
+  data: rows,
+  pagination: { enabled: true, pageSize: 50, pageSizeOptions: [25, 50, 100] },
+}).render('#app');
+```
+
+**Pagination in page-scroll mode** works without any special config. When `pagination` is enabled:
+- The body height equals `currentPageSize × rowHeight` (e.g. 50 rows × 32 px = 1 600 px).
+- Clicking "next page" scrolls the window back to the top of the grid and renders the new page.
+- Content below the grid is immediately reachable below the pagination bar.
+- Sort, filter, search, and row grouping all interact with pagination exactly as in fixed-height mode.
 
 ### Appearance
 
@@ -362,12 +390,6 @@ All fields optional except `columns`.
 
 See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 
-### Editing
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `flashChanges` | `boolean` | `true` | Flash cell background after programmatic value change or paste. |
-
 ### Selection
 
 | Field | Type | Default | Description |
@@ -383,6 +405,15 @@ See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 | `columnDrag` | `boolean` | `true` | Allow drag-reorder of column headers. |
 | `columnHide` | `boolean` | `true` | Allow hiding columns via header context menu. |
 
+### Localisation
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `locale` | `string` | `'en'` | Locale code for built-in UI labels. Supported: `'en'`, `'it'`, `'es'`, `'fr'`, `'de'`. |
+| `localeOverride` | `Partial<RaccoonLocale>` | — | Override individual strings without replacing the full locale. Merged on top of the resolved `locale`. |
+
+The following strings are localised: pagination labels ("Rows per page", page info, "0 items"), filter bar options ("All", "True", "False", "Loading…", "Error loading"), column context menu items (Sort ASC/DESC, Clear Sort, Hide Column, Group by, Pin Left/Right, Unpin), and the row group bar empty-state message.
+
 ### Virtual Scroll Tuning
 
 | Field | Type | Default | Description |
@@ -397,7 +428,6 @@ See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 | `onRowClick` | `(params) => void` | Row click. `params.item`, `params.rowIndex`, `params.event`. |
 | `onRowDblClick` | `(params) => void` | Row double-click. |
 | `onCellClick` | `(params) => void` | Cell click. Adds `params.column`. |
-| `onChange` | `(params) => void` | Cell value changed (edit commit). `params.item`, `params.column`, `params.value`, `params.oldValue`. |
 | `onRowSelectionChange` | `(params) => void` | Checkbox selection changed. `params.selected`, `params.deselected`, `params.all`. |
 | `onColumnChange` | `(params) => void` | Column visibility/order changed. `params.columns`. |
 | `onColumnResize` | `(params) => void` | Column resized. `params.column`, `params.width`. |
@@ -427,7 +457,7 @@ See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 **Type behaviors**:
 - `string`: locale-aware alphabetical sort; contains/equals/regex filter operators.
 - `number`: `Float64Array` sort (fastest); numeric filter operators (`>`, `<`, `+`, `-`).
-- `boolean`: `Uint8Array` sort; true/false filter buttons.
+- `boolean`: `Uint8Array` sort; true/false filter buttons; automatically renders a disabled checkbox — no `render` callback needed.
 - `currency`: same as `number` for sorting; rendered via `Intl.NumberFormat`.
 - `date`: rendered via `Date.toLocaleDateString`; sorted as string.
 - `order`: renders the 1-based row index; non-sortable.
@@ -455,7 +485,6 @@ See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 | `resizable` | `boolean` | `true` | Drag resize handle. |
 | `draggable` | `boolean` | `true` | Drag header to reorder. |
 | `menuItems` | `boolean` | `true` | Show ⋮ menu button on header hover. |
-| `editable` | `boolean` | `false` | dblclick opens editor. |
 | `dataIndex` | `boolean` | `false` | Use pre-built value index for O(1) sort (string columns only). |
 
 ### Currency / Number Formatting
@@ -466,18 +495,67 @@ See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 | `minDecimal` | `number` | Minimum fraction digits. |
 | `maxDecimal` | `number` | Maximum fraction digits. |
 
-### Editor
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `editorOptions` | `Record<string,unknown>` | Extra HTML input attributes for the default editor (e.g. `{ min: 0, max: 100 }`). |
-| `editorComponent` | `(params: CellParams) => HTMLElement` | Custom editor factory. Returned element must expose `getValue(): unknown` for commit. |
-
 ### Filter Bar
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `filterPlaceholder` | `string` | Input placeholder in filter bar cell. |
+| `filterPlaceholder` | `string` | Input placeholder in filter bar cell (also used as the "All" option label in boolean/lookup selects). |
+| `filterLookup` | `LookupConfig` | Replaces the text input with a dropdown (`<select>`). Always performs exact-match (`==`) comparison. Ideal for foreign-key columns where the stored value is an ID but the user should see a label. See [Lookup Filter](#lookup-filter) below. |
+
+### Lookup Filter
+
+When `filterLookup` is set on a column, the filter bar shows a `<select>` dropdown instead of a text input. The filter always uses `==` (exact match).
+
+```typescript
+interface LookupConfig {
+  options?: Array<{ value: unknown; name: string }>;
+  url?: string;        // AJAX endpoint — response must return the array (see below)
+  valueField?: string; // field name for the value. Default: "value"
+  nameField?: string;  // field name for the label. Default: "name"
+  params?: Record<string, string>; // extra query-string params appended to url
+}
+```
+
+**Static options:**
+```javascript
+{ id: 'role_id', index: 'role_id', text: 'Role', type: 'number', width: 130,
+  filterLookup: {
+    options: [
+      { value: 1, name: 'Admin' },
+      { value: 2, name: 'Editor' },
+      { value: 3, name: 'Viewer' },
+    ]
+  }
+}
+```
+
+**AJAX options (server returns `{data:[…]}` or plain array):**
+```javascript
+{ id: 'dept_id', index: 'dept_id', text: 'Department', type: 'number', width: 140,
+  filterLookup: {
+    url: '/api/departments',
+    valueField: 'id',    // matches item.dept_id
+    nameField: 'label',  // displayed in dropdown
+  }
+}
+```
+
+AJAX response must be one of:
+- Plain array: `[{ id: 1, label: "Engineering" }, …]`
+- Wrapped array: `{ data: [{ id: 1, label: "Engineering" }, …] }`
+
+The lookup dropdown always adds an "— All —" first option (customised via `filterPlaceholder`) that clears the filter when selected.
+
+### Boolean Filter
+
+Columns with `type: 'boolean'` automatically show a dropdown instead of a text input:
+
+| Option | Filter applied |
+|--------|---------------|
+| — All — | filter cleared |
+| True | `sign: 'T'` |
+| False | `sign: 'F'` |
+| Null / Empty | `sign: 'empty'` |
 
 ### Callbacks
 
@@ -487,10 +565,11 @@ See [§9 Server-Side Mode](#9-server-side-mode) for full details.
 | `format` | `(params) => string` | Format the display value. Applied before render when `render` is not set. |
 | `summaryRenderer` | `(params) => string` | Custom HTML for aggregation cell in group rows. |
 | `getter` | `(params) => unknown` | Custom value extractor used for sort, filter, and display. |
-| `setter` | `(params & {value}) => void` | Custom value writer on edit commit. If omitted, `store.setById()` is used. |
+| `setter` | `(params & {value}) => void` | Custom value writer called by `setById()`. If omitted, `store.setById()` sets the value directly. |
 | `cellCls` | `(params) => string` | Dynamic CSS class string added to the cell element. |
 | `cellClsRules` | `Record<string, (params) => boolean>` | Conditional classes: key = class name, value = predicate. |
 | `cellStyle` | `(params) => Record<string,string>` | Dynamic inline style for the cell. |
+| `cellOverflow` | `boolean` | `false` | Set to `true` to allow cell content to visually exceed cell boundaries (adds `rt-cell-overflow` CSS class: `overflow: visible; z-index: 10`). Use for action buttons that open dropdown menus — the menu itself should be appended to `document.body` so it isn't clipped by the scroll container. |
 
 **CellParams** fields:
 
@@ -545,7 +624,7 @@ Remove row(s) by internal `id` string. Re-renders.
 ```typescript
 grid.setById(id: string, index: string, value: unknown): void
 ```
-Update a single cell by row ID and column index. Triggers flash animation if `flashChanges` is enabled. Re-renders only the affected cell.
+Update a single cell by row ID and column index. Re-renders only the affected cell.
 
 ```typescript
 grid.getById(id: string): T | undefined
@@ -633,14 +712,6 @@ grid.collapseAll(): void
 grid.reConfigRowGroups(groups: string[]): void   // change which columns are grouped
 grid.addGroupToBar(index: string): void           // add column to row group bar
 grid.removeGroupFromBar(index: string): void      // remove from row group bar
-```
-
-### Clipboard
-
-```typescript
-grid.copySelectedCells(): void   // copies cell range selection to clipboard (Tab-delimited)
-grid.insertCopiedCells(text: string): void   // paste Tab-delimited text starting at activeCell
-grid.setBlankForSelectedCells(): void   // clear selected cell values
 ```
 
 ### Lifecycle
@@ -854,42 +925,7 @@ The global search bar (`config.searchBar = true`) applies a single in-memory pas
 
 ---
 
-## 14. Inline Editing
-
-### Flow
-
-1. User **double-clicks** an editable cell (`col.editable = true`).
-2. `openEditorForCell()` creates an `.rt-editor` overlay div positioned absolutely over the cell.
-3. The overlay contains either:
-   - Default editor: `<input type="text|number|checkbox|date">` with `col.editorOptions`.
-   - Custom editor: `col.editorComponent(params)` — a DOM element you provide.
-4. On **Enter** or **Tab**: `commitEdit()` reads the value, calls `col.setter` or `store.setById()`, flashes the cell, fires `config.onChange`.
-5. On **Escape** or outside click: `cancelEdit()` removes overlay with no data change.
-6. **Tab** also moves focus to the next editable cell in the same row.
-
-### Custom Editor Contract
-
-```typescript
-editorComponent: (params) => {
-  const el = document.createElement('div');
-  // ... build your editor UI
-  el.getValue = () => myEditorValue;   // REQUIRED for commit
-  return el;
-}
-```
-
-### Keyboard shortcuts during editing
-
-| Key | Action |
-|-----|--------|
-| Enter | Commit |
-| Escape | Cancel |
-| Tab | Commit + move right |
-| Shift+Tab | Commit + move left |
-
----
-
-## 15. Cell Selection
+## 14. Cell Selection
 
 Activated by `config.cellSelection = true`.
 
@@ -915,10 +951,7 @@ grid.selectionMap = Set<"rowIndex_colId">;  // fast lookup for cell class
 | Arrow keys | Move `activeCell` |
 | Page Up/Down | Jump by visible page height |
 | Home/End | First/last column (End), first/last row (Ctrl+End) |
-| Ctrl+C | Copy range to clipboard (Tab-delimited rows, newline-separated) |
-| Ctrl+V | Paste Tab-delimited text starting at `activeCell` |
-| Delete/Backspace | Clear selected cell values |
-| Printable char | Start editing `activeCell` (if editable) |
+| Ctrl+A | Select all cells |
 
 ---
 
@@ -1043,33 +1076,146 @@ For methods that return `void`, the plugin returns the jQuery object for chainin
 
 ### CSS Custom Properties (Design Tokens)
 
-All visual values are CSS custom properties on `:root`. Override any token to theme the grid:
+All visual values are CSS custom properties. The complete token set:
+
+| Token | Default (Raccoon) | Role |
+|-------|-------------------|------|
+| `--rt-font-family` | system-ui stack | Font |
+| `--rt-font-size` | `13px` | Base font size |
+| `--rt-line-height` | `1.4` | Line height |
+| `--rt-color-bg` | `#ffffff` | Row background |
+| `--rt-color-bg-alt` | `#f7f8fa` | Alternating row |
+| `--rt-color-bg-header` | `#f0f2f5` | Header background |
+| `--rt-color-bg-group` | `#e8ecf0` | Group row background |
+| `--rt-color-bg-selected` | `#e3f0ff` | Selected row background |
+| `--rt-color-bg-hover` | `#f0f4ff` | Hovered row background |
+| `--rt-color-bg-menu` | `#ffffff` | Dropdown menu background |
+| `--rt-color-border` | `#d9dde3` | Grid lines / borders |
+| `--rt-color-border-focus` | `#4a90e2` | Input focus ring |
+| `--rt-color-text` | `#2c3e50` | Primary text |
+| `--rt-color-text-secondary` | `#6b7d91` | Muted / secondary text |
+| `--rt-color-text-header` | `#3a4a5c` | Header cell text |
+| `--rt-color-text-group` | `#2c3e50` | Group row text |
+| `--rt-color-primary` | `#4a90e2` | Accent (sort arrow, selection, focus) |
+| `--rt-color-primary-hover` | `#357abd` | Accent hover |
+| `--rt-color-danger` | `#e74c3c` | Danger color (chip remove hover) |
+| `--rt-row-height` | `32px` | Data row height |
+| `--rt-header-height` | `32px` | Header row height |
+| `--rt-border-radius` | `4px` | Menus, inputs, grid corners |
+| `--rt-transition` | `0.15s ease` | CSS transitions |
+| `--rt-scrollbar-width` | `8px` | Scrollbar width |
+| `--rt-shadow-menu` | `0 4px 16px …` | Dropdown shadow |
+| `--rt-sort-indicator-color` | `var(--rt-color-primary)` | Sort arrow color |
+| `--rt-filter-active-color` | `#f39c12` | Filter active icon color |
+| `--rt-cell-selected-bg` | `rgba(74,144,226,.18)` | Cell range selection fill |
+| `--rt-cell-selected-border` | `rgba(74,144,226,.6)` | Cell range selection border |
+| `--rt-loading-overlay-bg` | `rgba(255,255,255,.6)` | Server-mode loading overlay |
+
+### Built-in Themes
+
+Four themes are included. Set via `config.theme` or `grid.setTheme(name, dark?)`:
+
+| Theme | Class | Description |
+|-------|-------|-------------|
+| `'raccoon'` | (default, no extra class) | Clean blue-accent default |
+| `'material'` | `rt-theme-material` | Material Design 3 — Roboto font, no vertical cell borders, elevated header |
+| `'fluent'` | `rt-theme-fluent` | Microsoft WinUI/Fluent — Segoe UI Variable, 36px rows |
+| `'tabler'` | `rt-theme-tabler` | Tabler-inspired — Inter font, uppercase headers, 36px rows |
+
+Each theme supports `dark: true` / `dark: false` (explicit) or auto via `prefers-color-scheme`. The `rt-dark` / `rt-light` classes are added automatically.
+
+```typescript
+// Set theme in config
+const grid = new RaccoonGrid({ theme: 'tabler', dark: false, ... });
+
+// Change at runtime
+grid.setTheme('material', true);  // material dark
+grid.setTheme('raccoon');         // raccoon, follows OS preference
+```
+
+### Theme Customisation via `themeVars`
+
+`config.themeVars` accepts a `ThemeVars` object — a map of CSS custom property names to string values.
+The entries are applied as **inline styles** on the root `.rt-wrap` element, so they win over both
+`:root` defaults and the active theme block. Floating elements (column menu, filter sign dropdown)
+receive the same overrides automatically when opened.
+
+**Extend a built-in theme** — override only what you need:
+
+```typescript
+import type { ThemeVars } from 'raccoon-tables';
+
+const grid = new RaccoonGrid({
+  theme: 'raccoon',
+  themeVars: {
+    '--rt-color-primary':        '#27ae60',
+    '--rt-color-primary-hover':  '#219a52',
+    '--rt-color-border-focus':   '#27ae60',
+    '--rt-sort-indicator-color': '#27ae60',
+    '--rt-color-bg-selected':    'rgba(39, 174, 96, 0.12)',
+    '--rt-cell-selected-bg':     'rgba(39, 174, 96, 0.14)',
+    '--rt-cell-selected-border': 'rgba(39, 174, 96, 0.50)',
+  },
+  columns: [...],
+  data: [...],
+});
+```
+
+**Fully custom theme** — omit `theme` and set all tokens yourself:
+
+```typescript
+const grid = new RaccoonGrid({
+  // no `theme:` — falls back to Raccoon token values for anything not overridden
+  themeVars: {
+    '--rt-font-family':          '"JetBrains Mono", monospace',
+    '--rt-font-size':            '12px',
+    '--rt-color-bg':             '#0d1117',
+    '--rt-color-bg-alt':         '#161b22',
+    '--rt-color-bg-header':      '#21262d',
+    '--rt-color-bg-group':       '#1c2128',
+    '--rt-color-border':         '#30363d',
+    '--rt-color-text':           '#e6edf3',
+    '--rt-color-text-secondary': '#8b949e',
+    '--rt-color-text-header':    '#8b949e',
+    '--rt-color-primary':        '#58a6ff',
+    '--rt-color-primary-hover':  '#388bfd',
+    '--rt-color-bg-selected':    'rgba(88,166,255,.12)',
+    '--rt-cell-selected-bg':     'rgba(88,166,255,.14)',
+    '--rt-cell-selected-border': 'rgba(88,166,255,.50)',
+    '--rt-border-radius':        '6px',
+    '--rt-row-height':           '28px',
+    '--rt-header-height':        '28px',
+    '--rt-shadow-menu':          '0 8px 24px rgba(0,0,0,.45)',
+    '--rt-loading-overlay-bg':   'rgba(13,17,23,.70)',
+  },
+  columns: [...],
+  data: [...],
+});
+```
+
+**Runtime update** with `grid.setThemeVars(vars)`:
+
+```typescript
+grid.setThemeVars({ '--rt-color-primary': '#e74c3c' }); // change accent
+grid.setThemeVars(undefined);                           // remove all overrides
+```
+
+`setThemeVars` removes all previously applied inline vars before setting the new ones.
+The active theme class is not affected.
+
+**CSS-only alternative** — no JS needed; target the root element directly:
 
 ```css
-:root {
-  --rt-font-family: ...;
-  --rt-font-size: 13px;
-  --rt-color-bg: #ffffff;
-  --rt-color-bg-alt: #f7f8fa;          /* alternating row */
-  --rt-color-bg-header: #f0f2f5;
-  --rt-color-bg-group: #e8ecf0;        /* group row */
-  --rt-color-bg-selected: #e3f0ff;     /* selected row */
-  --rt-color-bg-hover: #f0f4ff;
-  --rt-color-border: #d9dde3;
-  --rt-color-border-focus: #4a90e2;
-  --rt-color-text: #2c3e50;
-  --rt-color-primary: #4a90e2;
-  --rt-row-height: 32px;
-  --rt-scrollbar-width: 8px;
-  --rt-cell-flash-color: rgba(74, 144, 226, 0.25);
-  --rt-cell-selected-bg: rgba(74, 144, 226, 0.18);
-  /* ... see raccoon-tables.css for full list */
+/* Scope to a specific grid via config.cls */
+.rt-wrap.my-grid {
+  --rt-color-primary: #27ae60;
+  --rt-border-radius: 0;
 }
 ```
 
 ### Dark Mode
 
-Automatically applied via `@media (prefers-color-scheme: dark)`. Override by setting custom properties on a `.dark` class or similar.
+Applied automatically via `@media (prefers-color-scheme: dark)`. Force with `dark: true` / `dark: false` in config, or call `setTheme(theme, darkBool)`. `themeVars` inline overrides persist regardless of the dark-mode class.
 
 ### Key CSS Classes (from `cls.ts`)
 
@@ -1087,23 +1233,11 @@ Automatically applied via `@media (prefers-color-scheme: dark)`. Override by set
 | `rt-row-group` | Group header row |
 | `rt-cell` | Data cell (absolutely positioned) |
 | `rt-cell-selected` | Cell in selection range |
-| `rt-cell-flash` | Cell flash animation (0.8s) |
-| `rt-cell-editable` | Editable cell |
-| `rt-editor` | Inline editor overlay |
+| `rt-cell-overflow` | Cell with `cellOverflow: true` — `overflow: visible; z-index: 10` |
 | `rt-pagination` | Pagination bar |
 | `rt-search-bar` | Global search bar |
 | `rt-row-group-bar` | Drag-to-group bar |
 | `rt-loading` | Loading overlay (server mode) |
-
-### Flash Animation
-
-```css
-@keyframes rt-flash {
-  0%   { background: var(--rt-cell-flash-color); }
-  100% { background: transparent; }
-}
-.rt-cell-flash { animation: rt-flash 0.8s ease-out; }
-```
 
 ---
 
@@ -1131,7 +1265,6 @@ interface GridItem extends RowData {
   $hasChildrenGroups?: boolean;
   $selected?: boolean;     // for row/group checkbox selection
   $agValues?: Record<string, unknown>; // aggregation results
-  $flashColumns?: Set<string>; // columns to flash on next render
   amount?: number;         // total leaf rows in group subtree
   childrenAmount?: number; // direct children count
   expanded?: boolean;      // group expand state
@@ -1216,14 +1349,6 @@ The polyfill in `Store.ts` patches `Object.groupBy` globally. If your environmen
 
 The `id` field in `ColumnDef` is typed as `string` but is auto-generated by `ColumnMixin.prepareColumn()` using `generateUID()` if omitted. Always provide an explicit `id` when you need to reference a column programmatically (e.g. `showColumn(id)`).
 
-### Cell Editors and Absolute Positioning
-
-The editor overlay is positioned relative to `grid.el` (the `.rt-wrap` element). If `.rt-wrap` is inside a container with `overflow: hidden` that clips the editor, set `overflow: visible` on that container, or use `col.editorComponent` to render the editor inside a portal.
-
-### Flash Animation Restart
-
-The flash CSS animation (`rt-cell-flash`) restarts only if the class is removed and re-added. `flashCells()` forces a reflow between remove and re-add via `void cellEl.offsetWidth` — this is intentional and not a bug.
-
 ### Destroy
 
 After `grid.destroy()`:
@@ -1232,3 +1357,94 @@ After `grid.destroy()`:
 - The `ResizeObserver` is disconnected.
 - Pending server requests are aborted.
 - **The grid instance is not reusable.** Create a new instance to re-render.
+
+---
+
+## 23. Internationalisation (i18n)
+
+### Overview
+
+All built-in UI text is driven by the `RaccoonLocale` interface (exported from the package).
+The active locale is resolved at construction time and stored on `grid._locale`.
+
+### Usage
+
+```typescript
+import { RaccoonGrid } from 'raccoon-tables';
+
+// Built-in locale
+const grid = new RaccoonGrid({ locale: 'fr', columns: [...] });
+
+// Partial override
+const grid = new RaccoonGrid({
+  locale: 'en',
+  localeOverride: { rowsPerPage: 'Items per page: ' },
+  columns: [...],
+});
+
+// Fully custom locale object (e.g. for Portuguese)
+import type { RaccoonLocale } from 'raccoon-tables';
+const ptLocale: RaccoonLocale = {
+  rowsPerPage: 'Linhas por página: ',
+  pageInfo: '{start}–{end} de {total}',
+  zeroItems: '0 itens',
+  prevPage: '‹',
+  nextPage: '›',
+  searchPlaceholder: 'Pesquisar…',
+  filterTrue: 'Verdadeiro',
+  filterFalse: 'Falso',
+  filterClear: 'Limpar',
+  filterAll: '— Todos —',
+  filterLoading: 'Carregando…',
+  filterError: 'Erro ao carregar',
+  sortAsc: 'Ordenar ASC',
+  sortDesc: 'Ordenar DESC',
+  clearSort: 'Remover ordem',
+  hideColumn: 'Ocultar coluna',
+  groupBy: 'Agrupar por isto',
+  removeGroup: 'Remover grupo',
+  pinLeft: 'Fixar esquerda',
+  pinRight: 'Fixar direita',
+  unpin: 'Desafixar',
+  rowGroupBarEmpty: 'Arraste um cabeçalho de coluna aqui para agrupar',
+};
+
+const grid = new RaccoonGrid({ localeOverride: ptLocale, columns: [...] });
+```
+
+### RaccoonLocale interface
+
+| Key | Default (EN) | Description |
+|-----|-------------|-------------|
+| `rowsPerPage` | `'Rows per page: '` | Label before page size selector |
+| `pageInfo` | `'{start}–{end} of {total}'` | Pagination info; uses `{start}`, `{end}`, `{total}` literals |
+| `zeroItems` | `'0 items'` | Pagination info when no data |
+| `prevPage` | `'‹'` | Prev-page button label |
+| `nextPage` | `'›'` | Next-page button label |
+| `searchPlaceholder` | `'Search…'` | Global search input placeholder |
+| `filterTrue` | `'True'` | Boolean filter select option |
+| `filterFalse` | `'False'` | Boolean filter select option |
+| `filterClear` | `'Clear'` | Boolean filter sign clear option |
+| `filterAll` | `'— All —'` | Lookup / boolean filter "show all" option |
+| `filterLoading` | `'Loading…'` | AJAX lookup while loading |
+| `filterError` | `'Error loading'` | AJAX lookup error state |
+| `sortAsc` | `'Sort ASC'` | Column context menu item |
+| `sortDesc` | `'Sort DESC'` | Column context menu item |
+| `clearSort` | `'Clear Sort'` | Column context menu item |
+| `hideColumn` | `'Hide Column'` | Column context menu item |
+| `groupBy` | `'Group by this'` | Column context menu item |
+| `removeGroup` | `'Remove Group'` | Column context menu item |
+| `pinLeft` | `'Pin Left'` | Column context menu item |
+| `pinRight` | `'Pin Right'` | Column context menu item |
+| `unpin` | `'Unpin'` | Column context menu item |
+| `rowGroupBarEmpty` | `'Drag a column header here to group by it'` | Row group bar placeholder |
+
+### Adding a new built-in locale
+
+1. Open `src/utils/i18n.ts`.
+2. Copy the `en` entry in `LOCALES` and paste with your locale code as key (e.g. `'pt'`).
+3. Translate all values. Every key must be present — TypeScript will error otherwise.
+4. Keep `{start}`, `{end}`, `{total}` verbatim in `pageInfo`.
+5. Update the JSDoc `Supported locales:` comment at the top.
+6. `npm run typecheck && npm run build` — both must pass.
+7. Add a flag button to `demo/i18n.html` and open a PR.

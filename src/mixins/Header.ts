@@ -55,6 +55,10 @@ export const HeaderMixin = {
     } else {
       this.filterBarRowEl = null;
     }
+
+    // Re-apply scroll offset to the new header DOM — renderHeader wipes translateX.
+    this._syncHeaderScroll();
+    this._updateStickyColumns();
   },
 
   _syncHeaderScroll(this: Grid): void {
@@ -252,11 +256,20 @@ export const HeaderMixin = {
       const col = this.columnsById[colId];
       if (!col) continue;
       const activeFilter = this.store.filters.find(f => f.column.id === colId);
-      const input = cell.querySelector<HTMLInputElement>('input');
-      if (input && activeFilter) {
-        input.value = String(activeFilter.value ?? '');
-      } else if (input) {
-        input.value = '';
+
+      const sel = cell.querySelector<HTMLSelectElement>('select');
+      if (sel) {
+        sel.value = activeFilter ? String(activeFilter.sign === 'T' || activeFilter.sign === 'F' || activeFilter.sign === 'empty'
+          ? activeFilter.sign
+          : activeFilter.value ?? '') : '';
+        continue;
+      }
+
+      const inp = cell.querySelector<HTMLInputElement>('input');
+      if (inp && activeFilter) {
+        inp.value = String(activeFilter.value ?? '');
+      } else if (inp) {
+        inp.value = '';
       }
     }
   },
@@ -286,6 +299,11 @@ export const HeaderMixin = {
 
   onResizeMouseDown(this: Grid, e: MouseEvent, col: ColumnDef, headerCell: HTMLElement): void {
     e.preventDefault();
+    // Freeze flex column into a fixed width so manual resize sticks
+    if (col.flex) {
+      col.width = col.width ?? this.config.defaultColumnWidth ?? 100;
+      col.flex = undefined;
+    }
     this._resizeStartX = e.clientX;
     this._resizeStartWidth = col.width ?? this.config.defaultColumnWidth ?? 100;
     this._resizeCol = col;
@@ -295,6 +313,12 @@ export const HeaderMixin = {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      // Absorb the synthetic click the browser fires after mouseup so it doesn't trigger a sort
+      const absorbClick = (ev: Event) => {
+        ev.stopPropagation();
+        document.removeEventListener('click', absorbClick, true);
+      };
+      document.addEventListener('click', absorbClick, true);
       this.onResizeMouseUp();
     };
     document.addEventListener('mousemove', onMove);
@@ -304,28 +328,37 @@ export const HeaderMixin = {
   },
 
   onResizeMouseMove(this: Grid, e: MouseEvent): void {
-    if (!this._resizeCol) return;
+    if (!this._resizeCol || !this.bodyEl) return;
     const diff = e.clientX - this._resizeStartX;
     const newWidth = Math.max(MIN_COL_WIDTH, this._resizeStartWidth + diff);
     this._resizeCol.width = newWidth;
 
-    // Update header cell
+    // Update resized header cell width
     if (this._resizeHeaderCell) {
       this._resizeHeaderCell.style.width = `${newWidth}px`;
     }
 
-    // Update body cells
-    if (this.bodyEl) {
-      const cells = this.bodyEl.querySelectorAll<HTMLElement>(`[data-index="${this._resizeCol.index}"]`);
-      for (const cell of cells) {
-        cell.style.width = `${newWidth}px`;
-      }
+    // Update resized column body cells width
+    const resizeColId = this._resizeCol.id;
+    const cells = this.bodyEl.querySelectorAll<HTMLElement>(`[data-col-id="${resizeColId}"]`);
+    for (const cell of cells) {
+      cell.style.width = `${newWidth}px`;
     }
 
-    // Update filter bar cell
+    // Update filter bar cell width
     if (this.headerEl) {
-      const filterCell = this.headerEl.querySelector<HTMLElement>(`.${cls.filterBarCell}[data-col-id="${this._resizeCol.id}"]`);
+      const filterCell = this.headerEl.querySelector<HTMLElement>(`.${cls.filterBarCell}[data-col-id="${resizeColId}"]`);
       if (filterCell) filterCell.style.width = `${newWidth}px`;
+    }
+
+    // Shift left positions for all body cells in columns after the resized one
+    // (header/filter cells are in flex rows — no left needed)
+    const resizeIdx = this.visibleColumns.findIndex(c => c.id === resizeColId);
+    for (let i = resizeIdx + 1; i < this.visibleColumns.length; i++) {
+      const col = this.visibleColumns[i];
+      const newLeft = this.getColumnLeft(col);
+      const bodyCells = this.bodyEl.querySelectorAll<HTMLElement>(`[data-col-id="${col.id}"]`);
+      for (const bc of bodyCells) bc.style.left = `${newLeft}px`;
     }
 
     this.config.onColumnResize?.({ column: this._resizeCol, width: newWidth });
@@ -335,6 +368,33 @@ export const HeaderMixin = {
     document.body.classList.remove(cls.resizing);
     this._resizeCol = undefined;
     this._resizeHeaderCell = undefined;
+    // Re-distribute remaining flex columns and do a clean re-render
+    this.applyFlexColumns();
+    this.updateFakeScroller();
+    this.clearRows();
+    this.renderVisibleRows();
+  },
+
+  // -------------------------------------------------------------------------
+  // Filter active indicators (lightweight — does NOT rebuild the filter bar)
+  // -------------------------------------------------------------------------
+
+  _updateFilterActiveIndicators(this: Grid): void {
+    if (!this.headerEl) return;
+    const cells = this.headerEl.querySelectorAll<HTMLElement>(`.${cls.headerCell}`);
+    for (const cell of cells) {
+      const colId = cell.dataset['colId'];
+      if (!colId) continue;
+      const hasFilter = this.store.filters.some(f => f.column.id === colId);
+      const existing = cell.querySelector(`.${cls.headerCellFilterActive}`);
+      if (hasFilter && !existing) {
+        const ind = span(cls.headerCellFilterActive);
+        ind.innerHTML = svg.filter;
+        cell.appendChild(ind);
+      } else if (!hasFilter && existing) {
+        existing.remove();
+      }
+    }
   },
 
   // -------------------------------------------------------------------------
@@ -346,26 +406,29 @@ export const HeaderMixin = {
     this.closeHeaderCellMenu();
 
     const menu = div(cls.headerCellMenu);
+    this._propagateTheme(menu);
     document.body.appendChild(menu);
 
     const items: Array<{ text: string; action: () => void; disabled?: boolean }> = [];
 
     const sorter = this.store.sorters.find(s => s.column.id === col.id);
 
+    const loc = this._locale;
+
     if (col.sortable !== false) {
       items.push({
-        text: 'Sort ASC',
+        text: loc.sortAsc,
         action: () => { this.sort(col, 'ASC'); this.closeHeaderCellMenu(); },
         disabled: sorter?.dir === 'ASC',
       });
       items.push({
-        text: 'Sort DESC',
+        text: loc.sortDesc,
         action: () => { this.sort(col, 'DESC'); this.closeHeaderCellMenu(); },
         disabled: sorter?.dir === 'DESC',
       });
       if (sorter) {
         items.push({
-          text: 'Clear Sort',
+          text: loc.clearSort,
           action: () => { this.clearSort(col); this.closeHeaderCellMenu(); },
         });
       }
@@ -373,7 +436,7 @@ export const HeaderMixin = {
 
     if (this.config.columnHide !== false) {
       items.push({
-        text: 'Hide Column',
+        text: loc.hideColumn,
         action: () => { this.hideColumn(col.id); this.closeHeaderCellMenu(); },
       });
     }
@@ -381,7 +444,7 @@ export const HeaderMixin = {
     if (this.config.rowGroupBar) {
       const isGrouped = this.store.rowGroups.includes(col.index!);
       items.push({
-        text: isGrouped ? 'Remove Group' : 'Group by this',
+        text: isGrouped ? loc.removeGroup : loc.groupBy,
         action: () => {
           isGrouped ? this.removeGroupFromBar(col.index!) : this.addGroupToBar(col.index!);
           this.closeHeaderCellMenu();
@@ -391,18 +454,18 @@ export const HeaderMixin = {
 
     // Pin options
     items.push({
-      text: 'Pin Left',
+      text: loc.pinLeft,
       action: () => { this.pinColumn(col.id, 'left'); this.closeHeaderCellMenu(); },
       disabled: col.pinned === 'left',
     });
     items.push({
-      text: 'Pin Right',
+      text: loc.pinRight,
       action: () => { this.pinColumn(col.id, 'right'); this.closeHeaderCellMenu(); },
       disabled: col.pinned === 'right',
     });
     if (col.pinned) {
       items.push({
-        text: 'Unpin',
+        text: loc.unpin,
         action: () => { this.pinColumn(col.id, false); this.closeHeaderCellMenu(); },
       });
     }

@@ -48,7 +48,6 @@ export const ColumnMixin = {
       sortable: col.sortable !== false,
       filterable: col.filterable !== false,
       resizable: col.resizable !== false,
-      editable: col.editable ?? false,
     };
 
     // index is the data field key; text is the header label
@@ -162,19 +161,33 @@ export const ColumnMixin = {
   applyFlexColumns(this: Grid): void {
     if (!this.bodyEl) return;
     const totalWidth = this.bodyEl.clientWidth - (this.config.checkboxColumn ? 40 : 0);
-    const fixedWidth = this.visibleColumns
-      .filter(c => !c.flex)
-      .reduce((s, c) => s + (c.width ?? this.config.defaultColumnWidth ?? 100), 0);
-
+    if (totalWidth <= 0) return;
+    const defaultW = this.config.defaultColumnWidth ?? 100;
     const flexCols = this.visibleColumns.filter(c => c.flex);
-    if (!flexCols.length) return;
+    const fixedCols = this.visibleColumns.filter(c => !c.flex);
+    const fixedWidth = fixedCols.reduce((s, c) => s + (c.width ?? defaultW), 0);
 
-    const totalFlex = flexCols.reduce((s, c) => s + (typeof c.flex === 'number' ? c.flex : 1), 0);
-    const remaining = Math.max(0, totalWidth - fixedWidth);
-
-    for (const col of flexCols) {
-      const flex = typeof col.flex === 'number' ? col.flex : 1;
-      col.width = Math.floor((remaining * flex) / totalFlex);
+    if (flexCols.length) {
+      const totalFlex = flexCols.reduce((s, c) => s + (typeof c.flex === 'number' ? c.flex : 1), 0);
+      const remaining = Math.max(0, totalWidth - fixedWidth);
+      for (const col of flexCols) {
+        const flex = typeof col.flex === 'number' ? col.flex : 1;
+        col.width = Math.max(20, Math.floor((remaining * flex) / totalFlex));
+      }
+    } else if (fixedWidth > 0 && fixedWidth < totalWidth && fixedCols.length > 0) {
+      // No flex columns: scale all columns proportionally to fill the container
+      const scale = totalWidth / fixedWidth;
+      let remaining = totalWidth;
+      for (let i = 0; i < fixedCols.length; i++) {
+        const col = fixedCols[i];
+        if (i === fixedCols.length - 1) {
+          col.width = Math.max(20, remaining);
+        } else {
+          const newW = Math.max(20, Math.floor((col.width ?? defaultW) * scale));
+          col.width = newW;
+          remaining -= newW;
+        }
+      }
     }
   },
 };

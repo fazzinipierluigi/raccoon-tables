@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raccoon Tables — Page Scroll Mode</title>
+  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; max-width: 760px; line-height: 1.6; }
+    .back { color: #4a90e2; text-decoration: none; font-size: 13px; margin-bottom: 16px; display: inline-block; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+    .controls + .controls { margin-top: -4px; }
+    button { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+    button:hover { background: #f0f4ff; border-color: #4a90e2; }
+    button.active { background: #4a90e2; color: #fff; border-color: #4a90e2; }
+    select { padding: 6px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 13px; }
+    .section-label { font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-right: 4px; white-space: nowrap; }
+    #grid { margin-bottom: 40px; }
+    .after-grid {
+      padding: 20px; background: #fff; border-radius: 8px;
+      border: 1px solid #d0d7de; font-size: 13px; color: #555; line-height: 1.6;
+    }
+    .after-grid h2 { font-size: 15px; margin-bottom: 8px; color: #2c3e50; }
+    code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to main demo</a>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Page-Scroll Mode (default)</h1>
+  </div>
+  <p class="subtitle">
+    When <code>height</code> is not set, the grid enters <strong>page-scroll mode</strong>:
+    it grows to its full data height (or page-height when paginated) and the user
+    scrolls the <em>page</em>, not a container. The column header sticks to the
+    viewport. Virtual scroll is still active — only visible rows are rendered.
+    <br><br>
+    Pagination works normally in this mode: the body shrinks to
+    <code>pageSize × rowHeight</code> and page changes scroll back to the grid top.
+    Pass <code>height: N</code> to switch to the classic fixed-height / internal-scroll mode.
+  </p>
+
+  <div class="controls">
+    <span class="section-label">Rows:</span>
+    <button onclick="loadRows(50)">50</button>
+    <button onclick="loadRows(200)" class="active" id="btn-200">200</button>
+    <button onclick="loadRows(1000)">1 000</button>
+    <button onclick="loadRows(10000)">10 000</button>
+
+    <span class="section-label" style="margin-left:8px">Pagination:</span>
+    <button onclick="setPagination(false)" id="btn-nopag" class="active">Off (all rows visible)</button>
+    <button onclick="setPagination(25)"  id="btn-pag25">25 / page</button>
+    <button onclick="setPagination(50)"  id="btn-pag50">50 / page</button>
+    <button onclick="setPagination(100)" id="btn-pag100">100 / page</button>
+  </div>
+
+  <div class="controls">
+    <span class="section-label">Actions:</span>
+    <button onclick="grid.clearSort()">Clear Sort</button>
+    <button onclick="grid.clearFilter()">Clear Filters</button>
+    <button onclick="scrollTop()">↑ Scroll to grid top</button>
+  </div>
+
+  <div id="grid"></div>
+
+  <div class="after-grid">
+    <h2>Content below the grid</h2>
+    <p>
+      This block sits in the normal document flow below the grid.
+      When pagination is <strong>off</strong>, the grid grows to display all rows and
+      this content is pushed far down the page.
+      When pagination is <strong>on</strong>, the grid body is only
+      <code>pageSize × rowHeight</code> pixels tall and this content
+      is reachable right below the pagination bar.
+    </p>
+    <p style="margin-top:10px">
+      <strong>Compare with fixed-height mode:</strong> open
+      <a href="client-side.html" style="color:#4a90e2">Client-Side demo</a>
+      which uses <code>height: 450</code>.
+    </p>
+  </div>
+
+  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script>
+    const { RaccoonGrid } = RaccoonTables;
+
+    const DEPTS = ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance', 'Legal'];
+    const CITIES = ['Milan', 'Rome', 'Turin', 'Naples', 'Florence', 'Bologna'];
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    let currentRows = 200;
+    let currentPageSize = false; // false = no pagination
+
+    function makeData(n) {
+      return Array.from({ length: n }, (_, i) => ({
+        id: i + 1,
+        name: `Employee ${String(i + 1).padStart(4, '0')}`,
+        department: rand(DEPTS),
+        city: rand(CITIES),
+        salary: Math.floor(30000 + Math.random() * 90000),
+        yearsExp: Math.floor(1 + Math.random() * 20),
+        active: Math.random() > 0.3,
+      }));
+    }
+
+    const COLUMNS = [
+      { id: 'id',   index: 'id',        text: '#',          type: 'number',   width: 60 },
+      { id: 'name', index: 'name',       text: 'Name',       type: 'string',   flex: true },
+      { id: 'dept', index: 'department', text: 'Department', type: 'string',   width: 130 },
+      { id: 'city', index: 'city',       text: 'City',       type: 'string',   width: 110 },
+      { id: 'sal',  index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+      { id: 'exp',  index: 'yearsExp',   text: 'Exp (yrs)', type: 'number',   width: 90,  align: 'right' },
+      { id: 'act',  index: 'active',     text: 'Active',     type: 'boolean',  width: 80 },
+    ];
+
+    let grid = null;
+
+    function buildGrid() {
+      if (grid) grid.destroy();
+      document.getElementById('grid').innerHTML = '';
+
+      const paginationCfg = currentPageSize
+        ? { enabled: true, pageSize: currentPageSize, pageSizeOptions: [10, 25, 50, 100] }
+        : undefined;
+
+      // NOTE: no `height` → page-scroll mode. Works with or without pagination.
+      grid = new RaccoonGrid({
+        data: makeData(currentRows),
+        filterBar: true,
+        searchBar: true,
+        checkboxColumn: true,
+        pagination: paginationCfg,
+        columns: COLUMNS,
+      });
+
+      grid.render('#grid');
+    }
+
+    function loadRows(n) {
+      currentRows = n;
+      document.querySelectorAll('[id^="btn-"]').forEach(b => {
+        if (b.id.startsWith('btn-') && !b.id.startsWith('btn-pag') && b.id !== 'btn-nopag') {
+          b.classList.remove('active');
+        }
+      });
+      buildGrid();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function setPagination(pageSize) {
+      currentPageSize = pageSize;
+      // Update button states
+      document.getElementById('btn-nopag').classList.toggle('active', !pageSize);
+      document.getElementById('btn-pag25').classList.toggle('active', pageSize === 25);
+      document.getElementById('btn-pag50').classList.toggle('active', pageSize === 50);
+      document.getElementById('btn-pag100').classList.toggle('active', pageSize === 100);
+      buildGrid();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function scrollTop() {
+      if (!grid || !grid.el) return;
+      const top = grid.el.getBoundingClientRect().top + window.scrollY - 16;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }
+
+    buildGrid();
+  </script>
+</body>
+</html>

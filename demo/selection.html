@@ -27,11 +27,16 @@
       background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px;
       padding: 10px 14px; font-size: 13px; margin-bottom: 12px; color: #2e7d32;
     }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
   </style>
 </head>
 <body>
   <a class="back" href="index.html">← Back to main demo</a>
-  <h1>Row & Cell Selection</h1>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Row & Cell Selection</h1>
+  </div>
   <p class="subtitle">
     Left: row checkbox selection. Right: cell range selection with keyboard shortcuts.
   </p>
@@ -109,19 +114,18 @@
           : `Selected IDs: ${sel.map(r => r.id).join(', ')}`;
     }
 
-    // Grid 2: cell range selection + editable
+    // Grid 2: cell range selection
     const g2 = new RaccoonGrid({
       columns: [
         { id: 'name',  index: 'name',  text: 'Name',   type: 'string', width: 80 },
-        { id: 'col_a', index: 'col_a', text: 'A', type: 'number', width: 70, editable: true },
-        { id: 'col_b', index: 'col_b', text: 'B', type: 'number', width: 70, editable: true },
-        { id: 'col_c', index: 'col_c', text: 'C', type: 'number', width: 70, editable: true },
-        { id: 'col_d', index: 'col_d', text: 'D', type: 'number', width: 70, editable: true },
+        { id: 'col_a', index: 'col_a', text: 'A', type: 'number', width: 70 },
+        { id: 'col_b', index: 'col_b', text: 'B', type: 'number', width: 70 },
+        { id: 'col_c', index: 'col_c', text: 'C', type: 'number', width: 70 },
+        { id: 'col_d', index: 'col_d', text: 'D', type: 'number', width: 70 },
       ],
       data: data.map(r => ({ ...r })),
       height: 380,
       cellSelection: true,
-      flashChanges: true,
     });
     g2.render('#grid2');
   </script>

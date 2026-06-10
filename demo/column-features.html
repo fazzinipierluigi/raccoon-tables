@@ -23,11 +23,16 @@
       border-radius: 12px; padding: 3px 10px; font-size: 12px; color: #1a4e8a; cursor: pointer;
     }
     .pill:hover { background: #d0e8f8; }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
   </style>
 </head>
 <body>
   <a class="back" href="index.html">← Back to main demo</a>
-  <h1>Column Features</h1>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Column Features</h1>
+  </div>
   <p class="subtitle">
     Column resize · Drag reorder · Show/hide via header context menu ·
     Column groups (multi-level header) · Flex width · Column pinning
@@ -80,6 +85,29 @@
       Resize the window or the grid to see flex columns adapt.
     </p>
     <div id="grid3" class="grid-box"></div>
+  </div>
+
+  <!-- Action column with overflow dropdown -->
+  <div class="section">
+    <div class="section-title">Action Column — cell overflow &amp; dropdown menu</div>
+    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+      <code>cellOverflow: true</code> lets a cell visually exceed its boundaries.
+      The action button opens a dropdown menu appended to <code>document.body</code> —
+      use this pattern for menus inside cells to avoid clipping by the scroll container.
+    </p>
+    <div id="grid6" class="grid-box"></div>
+  </div>
+
+  <!-- Boolean filter + Lookup filter -->
+  <div class="section">
+    <div class="section-title">Boolean Filter &amp; Lookup (Dropdown) Filter</div>
+    <p style="font-size:13px;color:#666;margin-bottom:8px;">
+      <strong>Active</strong>: boolean filter shows a select (All / True / False / Null).
+      <strong>Department</strong>: lookup filter with static options list — always exact-match (==).
+      <strong>Contract</strong>: lookup filter that would normally load via AJAX
+      (using static data here for the demo).
+    </p>
+    <div id="grid5" class="grid-box"></div>
   </div>
 
   <script src="../dist/raccoon-tables.iife.js"></script>
@@ -214,6 +242,115 @@
     function unpinAll4() {
       g4AllCols.forEach(id => g4.pinColumn(id, false));
     }
+
+    // ---- Grid 5: boolean filter + lookup filter ----------------------------
+    const DEPT_OPTIONS = [
+      { value: 'Engineering', name: 'Engineering' },
+      { value: 'Marketing',   name: 'Marketing' },
+      { value: 'Sales',       name: 'Sales' },
+      { value: 'HR',          name: 'HR' },
+      { value: 'Finance',     name: 'Finance' },
+    ];
+    const CONTRACT_OPTIONS = [
+      { value: 'Full-time',   name: 'Full-time' },
+      { value: 'Part-time',   name: 'Part-time' },
+      { value: 'Contractor',  name: 'Contractor' },
+    ];
+
+    const makeData5 = n => Array.from({ length: n }, (_, i) => ({
+      id: i + 1,
+      name: `Employee ${i + 1}`,
+      department: rand(DEPTS),
+      active: Math.random() > 0.3,
+      salary: Math.floor(35000 + Math.random() * 65000),
+      contract: rand(['Full-time', 'Part-time', 'Contractor']),
+    }));
+
+    const g5 = new RaccoonGrid({
+      columns: [
+        { id: 'id',         index: 'id',         text: 'ID',         type: 'number',  width: 60 },
+        { id: 'name',       index: 'name',       text: 'Name',       type: 'string',  flex: 1 },
+        { id: 'department', index: 'department', text: 'Department', type: 'string',  width: 140,
+          filterLookup: { options: DEPT_OPTIONS } },
+        { id: 'active',     index: 'active',     text: 'Active',     type: 'boolean', width: 90,
+          render: ({ value }) => `<span style="color:${value ? '#27ae60' : '#e74c3c'}">${value ? '✓' : '✗'}</span>` },
+        { id: 'salary',     index: 'salary',     text: 'Salary',     type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        { id: 'contract',   index: 'contract',   text: 'Contract',   type: 'string',   width: 130,
+          filterPlaceholder: '— All contracts —',
+          filterLookup: { options: CONTRACT_OPTIONS } },
+      ],
+      data: makeData5(120),
+      height: 360,
+      filterBar: true,
+      checkboxColumn: true,
+    });
+    g5.render('#grid5');
+
+    // ---- Grid 6: action column with cellOverflow dropdown ------------------
+    let _actionMenu = null;
+
+    function closeActionMenu() {
+      if (_actionMenu) { _actionMenu.remove(); _actionMenu = null; }
+    }
+
+    function openActionMenu(btn, item) {
+      closeActionMenu();
+      const actions = [
+        { label: 'View',   icon: '👁', fn: () => alert(`View: ${item.name}`) },
+        { label: 'Edit',   icon: '✏️', fn: () => alert(`Edit: ${item.name}`) },
+        { label: 'Clone',  icon: '⧉',  fn: () => alert(`Clone: ${item.name}`) },
+        { label: 'Delete', icon: '🗑', fn: () => alert(`Delete: ${item.name}`) },
+      ];
+
+      const menu = document.createElement('div');
+      menu.style.cssText = `
+        position:fixed; background:#fff; border:1px solid #dce1e7; border-radius:6px;
+        box-shadow:0 4px 16px rgba(0,0,0,.12); padding:4px 0; min-width:150px;
+        font-size:13px; z-index:9999;
+      `;
+      for (const { label, icon, fn } of actions) {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;';
+        item.innerHTML = `<span>${icon}</span><span>${label}</span>`;
+        item.onmouseenter = () => item.style.background = '#f1f5f9';
+        item.onmouseleave = () => item.style.background = '';
+        item.onclick = (e) => { e.stopPropagation(); fn(); closeActionMenu(); };
+        menu.appendChild(item);
+      }
+      document.body.appendChild(menu);
+      _actionMenu = menu;
+
+      const rect = btn.getBoundingClientRect();
+      const mw = menu.offsetWidth;
+      const left = Math.min(rect.left, window.innerWidth - mw - 4);
+      menu.style.top  = `${rect.bottom + 2}px`;
+      menu.style.left = `${Math.max(0, left)}px`;
+
+      setTimeout(() => document.addEventListener('mousedown', closeActionMenu, { once: true }), 0);
+    }
+
+    const g6 = new RaccoonGrid({
+      columns: [
+        { id: 'id',     index: 'id',     text: 'ID',     type: 'number', width: 60 },
+        { id: 'name',   index: 'name',   text: 'Name',   type: 'string', flex: 1 },
+        { id: 'dept',   index: 'department', text: 'Dept', type: 'string', width: 130 },
+        { id: 'salary', index: 'salary', text: 'Salary', type: 'currency', width: 120, currency: 'EUR', minDecimal: 0, maxDecimal: 0 },
+        {
+          id: 'actions', text: 'Actions', width: 80,
+          cellOverflow: true,
+          render: ({ item }) => `
+            <button
+              onclick="openActionMenu(this, ${JSON.stringify({ name: item.name })})"
+              style="padding:3px 10px;border:1px solid #dce1e7;border-radius:4px;
+                     background:#fff;cursor:pointer;font-size:12px;white-space:nowrap;"
+            >Actions ▾</button>
+          `,
+        },
+      ],
+      data: makeData(30),
+      height: 300,
+    });
+    g6.render('#grid6');
   </script>
 </body>
 </html>

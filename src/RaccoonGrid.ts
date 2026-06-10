@@ -41,6 +41,7 @@ import type {
   ServerResponse,
   GridLayout,
   GridColumnLayout,
+  ThemeVars,
 } from './types.js';
 import { Store } from './core/Store.js';
 import { Scroller } from './core/Scroller.js';
@@ -49,13 +50,13 @@ import { cls } from './utils/cls.js';
 import { div } from './utils/dom.js';
 import { svg } from './utils/svg.js';
 import { debounce } from './utils/debounce.js';
+import { getLocale, formatPageInfo, type RaccoonLocale } from './utils/i18n.js';
 
 import { BodyMixin } from './mixins/Body.js';
 import { HeaderMixin } from './mixins/Header.js';
 import { SortMixin } from './mixins/Sort.js';
 import { FilterMixin } from './mixins/Filter.js';
 import { ColumnMixin } from './mixins/Column.js';
-import { EditMixin } from './mixins/Edit.js';
 import { SelectionMixin, type CellRange, type ActiveCell } from './mixins/Selection.js';
 import { KeyNavigationMixin } from './mixins/KeyNavigation.js';
 import { ScrollMixin } from './mixins/Scroll.js';
@@ -102,16 +103,6 @@ export class RaccoonGrid<T extends RowData = RowData> {
   activeCell: ActiveCell | undefined;
   selectAllCheckbox: HTMLInputElement | undefined;
 
-  // ---- edit state ----
-  _activeEditor: {
-    editorWrap: HTMLElement;
-    editorEl: HTMLElement;
-    item: GridItem;
-    col: ColumnDef;
-    rowIndex: number;
-    cellEl: HTMLElement;
-  } | undefined;
-
   // ---- resize state ----
   _resizeStartX = 0;
   _resizeStartWidth = 0;
@@ -138,12 +129,22 @@ export class RaccoonGrid<T extends RowData = RowData> {
   // ---- search state ----
   _globalSearch: string | undefined;
 
+  // ---- localisation ----
+  _locale: RaccoonLocale;
+
+  // ---- page-scroll mode ----
+  /** True when no `height` config — grid scrolls with the page instead of internally. */
+  _pageScrollMode = false;
+  _windowScrollHandler: (() => void) | undefined;
+
   // ---- debounced server request (created per-instance) ----
   _triggerServerRequest: () => void;
 
   constructor(config: GridConfig<T>) {
     this.config = config;
     this._pageSize = config.pagination?.pageSize ?? 50;
+    const base = getLocale(config.locale);
+    this._locale = config.localeOverride ? { ...base, ...config.localeOverride } : base;
 
     // Server adapter
     if (config.serverAdapter) {
@@ -161,6 +162,9 @@ export class RaccoonGrid<T extends RowData = RowData> {
       serverTotal: 0,
     });
 
+    // Page-scroll mode: active when no fixed height is configured
+    this._pageScrollMode = !config.height;
+
     // Scroller
     this.scroller = new Scroller({
       rowHeight: config.rowHeight ?? 32,
@@ -168,6 +172,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
       bufferRows: config.bufferRows ?? 10,
       defaultColumnWidth: config.defaultColumnWidth ?? 100,
     });
+    this.scroller.pageScrollMode = this._pageScrollMode;
     this.scroller.totalRows = this.store.getDisplayedDataTotal();
 
     // Per-instance debounced server request (avoids prototype-shared debounce)
@@ -191,6 +196,18 @@ export class RaccoonGrid<T extends RowData = RowData> {
     if (this.config.cls) this.el.classList.add(...this.config.cls.split(' ').filter(Boolean));
     if (this.config.style) Object.assign(this.el.style, this.config.style);
 
+    if (this.config.theme === 'material') this.el.classList.add('rt-theme-material');
+    else if (this.config.theme === 'fluent') this.el.classList.add('rt-theme-fluent');
+    else if (this.config.theme === 'tabler') this.el.classList.add('rt-theme-tabler');
+    if (this.config.dark === true) this.el.classList.add('rt-dark');
+    else if (this.config.dark === false) this.el.classList.add('rt-light');
+    if (this._pageScrollMode) this.el.classList.add(cls.pageScroll);
+    if (this.config.themeVars) {
+      for (const [key, val] of Object.entries(this.config.themeVars)) {
+        if (val !== undefined) this.el.style.setProperty(key, val);
+      }
+    }
+
     // Global search bar
     if (this.config.searchBar) {
       this.searchBarEl = this._createSearchBar();
@@ -207,9 +224,9 @@ export class RaccoonGrid<T extends RowData = RowData> {
     this.headerEl = div(cls.header);
     this.el.appendChild(this.headerEl);
 
-    // Height / width on the wrapper (bodyEl uses flex:1 in CSS to fill remaining space)
-    if (this.config.height) this.el.style.height = `${this.config.height}px`;
-    if (this.config.width)  this.el.style.width  = `${this.config.width}px`;
+    // Height on wrapper (fixed mode only; page-scroll mode has no fixed height)
+    if (!this._pageScrollMode && this.config.height) this.el.style.height = `${this.config.height}px`;
+    if (this.config.width) this.el.style.width = `${this.config.width}px`;
 
     // Body
     this.bodyEl = div(cls.body);
@@ -241,9 +258,15 @@ export class RaccoonGrid<T extends RowData = RowData> {
     // Do NOT reset scroller.totalRows here — it's already set correctly by the
     // last data operation (pagination/_applyPagination sets page-size, not full count).
     this.scroller.attach(this.el, this.bodyEl, this.headerEl, () => {
+      if (this._pageScrollMode) this.scroller.viewHeight = window.innerHeight;
       this.applyFlexColumns();
       this.renderVisibleRows();
     });
+
+    // In page-scroll mode seed the initial viewHeight from the window
+    if (this._pageScrollMode) {
+      this.scroller.viewHeight = window.innerHeight;
+    }
 
     // Wire up event listeners
     this.initScrollListeners();
@@ -323,10 +346,6 @@ export class RaccoonGrid<T extends RowData = RowData> {
   setById(id: string, index: string, value: unknown): void {
     this.store.setById(id, index, value);
 
-    if (this.config.flashChanges !== false) {
-      this.flashCells(id, [index]);
-    }
-
     const rowIndex = this.store.idRowIndexesMap.get(id);
     if (rowIndex === undefined || !this.bodyEl) return;
 
@@ -336,9 +355,15 @@ export class RaccoonGrid<T extends RowData = RowData> {
 
     const rowEl = this.bodyEl.querySelector<HTMLElement>(`[data-id="${id}"]`);
     const cellEl = rowEl?.querySelector<HTMLElement>(`[data-col-id="${col.id}"]`);
-    if (cellEl) {
-      this._updateCellInRow(item, col, rowIndex, cellEl);
-    }
+    if (!cellEl) return;
+
+    const rawValue = col.getter ? col.getter({ item, column: col }) : item[col.index!];
+    const params = {
+      value: rawValue, item, column: col, rowIndex,
+      grid: this as unknown as typeof this,
+      currency: col.currency, minDecimal: col.minDecimal, maxDecimal: col.maxDecimal,
+    };
+    cellEl.innerHTML = col.render ? col.render(params) : this.getCellDisplayValue(params);
   }
 
   getById(id: string): T | undefined {
@@ -353,7 +378,51 @@ export class RaccoonGrid<T extends RowData = RowData> {
     }
   }
 
+  setTheme(theme: 'raccoon' | 'material' | 'fluent' | 'tabler', dark?: boolean): void {
+    if (!this.el) return;
+    this.el.classList.remove('rt-theme-material', 'rt-theme-fluent', 'rt-theme-tabler', 'rt-dark', 'rt-light');
+    if (theme === 'material') this.el.classList.add('rt-theme-material');
+    else if (theme === 'fluent') this.el.classList.add('rt-theme-fluent');
+    else if (theme === 'tabler') this.el.classList.add('rt-theme-tabler');
+    if (dark === true) this.el.classList.add('rt-dark');
+    else if (dark === false) this.el.classList.add('rt-light');
+    this.config.theme = theme;
+    this.config.dark = dark;
+  }
+
+  setThemeVars(vars: ThemeVars | undefined): void {
+    if (!this.el) return;
+    if (this.config.themeVars) {
+      for (const key of Object.keys(this.config.themeVars)) {
+        this.el.style.removeProperty(key);
+      }
+    }
+    this.config.themeVars = vars;
+    if (vars) {
+      for (const [key, val] of Object.entries(vars)) {
+        if (val !== undefined) this.el.style.setProperty(key, val);
+      }
+    }
+  }
+
+  _propagateTheme(target: HTMLElement): void {
+    if (!this.el) return;
+    const THEME_CLASSES = ['rt-theme-material', 'rt-theme-fluent', 'rt-theme-tabler', 'rt-dark', 'rt-light'] as const;
+    for (const c of THEME_CLASSES) {
+      if (this.el.classList.contains(c)) target.classList.add(c);
+    }
+    if (this.config.themeVars) {
+      for (const [key, val] of Object.entries(this.config.themeVars)) {
+        if (val !== undefined) target.style.setProperty(key, val);
+      }
+    }
+  }
+
   destroy(): void {
+    if (this._windowScrollHandler) {
+      window.removeEventListener('scroll', this._windowScrollHandler);
+      this._windowScrollHandler = undefined;
+    }
     this.scroller.detach();
     this.serverAdapter?.cancel();
     this.el?.remove();
@@ -490,7 +559,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.classList.add(cls.searchBarInput);
-    inp.placeholder = this.config.searchBarPlaceholder ?? 'Search...';
+    inp.placeholder = this.config.searchBarPlaceholder ?? this._locale.searchPlaceholder;
 
     const doSearch = debounce((value: string) => {
       this._globalSearch = value || undefined;
@@ -559,7 +628,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
     if (pagination.pageSizeOptions?.length) {
       const sizeWrap = div(cls.paginationSizeWrap);
       const sizeLabel = document.createElement('span');
-      sizeLabel.textContent = 'Rows per page: ';
+      sizeLabel.textContent = this._locale.rowsPerPage;
       sizeWrap.appendChild(sizeLabel);
 
       const sel = document.createElement('select');
@@ -587,7 +656,9 @@ export class RaccoonGrid<T extends RowData = RowData> {
     const end = Math.min(page * pageSize, total);
     const info = document.createElement('span');
     info.classList.add(cls.paginationInfo);
-    info.textContent = total > 0 ? `${start}–${end} of ${total}` : '0 items';
+    info.textContent = total > 0
+      ? formatPageInfo(this._locale.pageInfo, start, end, total)
+      : this._locale.zeroItems;
     wrap.appendChild(info);
 
     // Navigation
@@ -721,7 +792,6 @@ export class RaccoonGrid<T extends RowData = RowData> {
   updateFakeScroller(): void { throw new Error('mixin not applied'); }
   getColumnLeft(_col: ColumnDef): number { throw new Error('mixin not applied'); }
   onRowGroupExpanderClick(_item: GridItem): void { throw new Error('mixin not applied'); }
-  flashCells(_id: string, _indexes: string[]): void { throw new Error('mixin not applied'); }
 
   renderHeader(): void { throw new Error('mixin not applied'); }
   renderGroupHeader(): void { throw new Error('mixin not applied'); }
@@ -730,6 +800,8 @@ export class RaccoonGrid<T extends RowData = RowData> {
   createFilterBarCell(_col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
   createFilterField(_col: ColumnDef, _container: HTMLElement): HTMLElement { throw new Error('mixin not applied'); }
   updateFilterBarCells(): void { throw new Error('mixin not applied'); }
+  _updateFilterActiveIndicators(): void { throw new Error('mixin not applied'); }
+  // _propagateTheme is a real method defined above (not a mixin stub)
   showHeaderCellMenuList(_e: MouseEvent, _col: ColumnDef, _cell: HTMLElement): void { throw new Error('mixin not applied'); }
   closeHeaderCellMenu(): void { throw new Error('mixin not applied'); }
   onHeaderCellClick(_e: MouseEvent, _col: ColumnDef): void { throw new Error('mixin not applied'); }
@@ -743,6 +815,8 @@ export class RaccoonGrid<T extends RowData = RowData> {
   filter(_column: ColumnDef, _value: unknown, _sign?: FilterSign, _onePerColumn?: boolean): void { throw new Error('mixin not applied'); }
   clearFilter(_column?: ColumnDef, _sign?: FilterSign): void { throw new Error('mixin not applied'); }
   showFilterSignList(_col: ColumnDef, _btn: HTMLElement, _cb: (sign: FilterSign) => void): void { throw new Error('mixin not applied'); }
+  _createBooleanFilterSelect(_col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
+  _createLookupFilterSelect(_col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
 
   prepareColumns(): void { throw new Error('mixin not applied'); }
   prepareColumn(_col: ColumnDef): ColumnDef { throw new Error('mixin not applied'); }
@@ -754,15 +828,6 @@ export class RaccoonGrid<T extends RowData = RowData> {
   setColumnWidth(_colId: string, _width: number): void { throw new Error('mixin not applied'); }
   applyFlexColumns(): void { throw new Error('mixin not applied'); }
   pinColumn(_colId: string, _pin: 'left' | 'right' | false): void { throw new Error('mixin not applied'); }
-
-  openEditorForCell(_item: GridItem, _col: ColumnDef, _rowIndex: number, _cellEl: HTMLElement): void { throw new Error('mixin not applied'); }
-  commitEdit(): void { throw new Error('mixin not applied'); }
-  cancelEdit(): void { throw new Error('mixin not applied'); }
-  hideActiveEditor(): void { throw new Error('mixin not applied'); }
-  copySelectedCells(): void { throw new Error('mixin not applied'); }
-  insertCopiedCells(_text: string): void { throw new Error('mixin not applied'); }
-  setBlankForSelectedCells(): void { throw new Error('mixin not applied'); }
-  _updateCellInRow(_item: GridItem, _col: ColumnDef, _rowIndex: number, _cellEl: HTMLElement): void { throw new Error('mixin not applied'); }
 
   selectRow(_item: GridItem, _selected: boolean): void { throw new Error('mixin not applied'); }
   selectAll(_selected: boolean): void { throw new Error('mixin not applied'); }
@@ -796,19 +861,19 @@ export class RaccoonGrid<T extends RowData = RowData> {
   onGroupRowCheckboxChange(_item: GridItem, _checked: boolean): void { throw new Error('mixin not applied'); }
   _onColumnDragStart(_e: MouseEvent, _col: ColumnDef, _headerCell: HTMLElement): void { throw new Error('mixin not applied'); }
   _createDragColumnGhost(_headerCell: HTMLElement, _col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
-  _createDefaultEditor(_col: ColumnDef, _value: unknown): HTMLInputElement { throw new Error('mixin not applied'); }
-  _moveEditToAdjacentCell(_col: ColumnDef, _rowIndex: number, _dir: number): void { throw new Error('mixin not applied'); }
-  _copyFallback(_text: string): void { throw new Error('mixin not applied'); }
   _getSignsForColumn(_col: ColumnDef): Array<{ text: string; sign: FilterSign }> { throw new Error('mixin not applied'); }
   createHeaderCheckboxCell(): HTMLElement { throw new Error('mixin not applied'); }
   _onBodyKeyDown(_e: KeyboardEvent): void { throw new Error('mixin not applied'); }
   _navigateTo(_rowIndex: number, _colIndex: number): void { throw new Error('mixin not applied'); }
-  _openEditorForActiveCell(_initialChar?: string): void { throw new Error('mixin not applied'); }
   _syncHeaderScroll(): void { throw new Error('mixin not applied'); }
+  _updateStickyColumns(): void { throw new Error('mixin not applied'); }
   _onNativeScroll(): void { throw new Error('mixin not applied'); }
   _onMouseWheel(_e: WheelEvent): void { throw new Error('mixin not applied'); }
+  _onMouseWheelHorizontal(_e: WheelEvent): void { throw new Error('mixin not applied'); }
+  _onWindowScroll(): void { throw new Error('mixin not applied'); }
   _onTouchStart(_e: TouchEvent): void { throw new Error('mixin not applied'); }
   _onTouchMove(_e: TouchEvent): void { throw new Error('mixin not applied'); }
+  _onTouchMoveHorizontal(_e: TouchEvent): void { throw new Error('mixin not applied'); }
   _onTouchEnd(): void { throw new Error('mixin not applied'); }
   _updateRowSelectedClass(_item: GridItem): void { throw new Error('mixin not applied'); }
   _updateSelectAllCheckbox(): void { throw new Error('mixin not applied'); }
@@ -827,7 +892,6 @@ const MIXINS = [
   SortMixin,
   FilterMixin,
   ColumnMixin,
-  EditMixin,
   SelectionMixin,
   KeyNavigationMixin,
   ScrollMixin,

@@ -17,11 +17,16 @@
     button { padding: 6px 12px; border: 1px solid #d0d7de; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
     button:hover { background: #f0f4ff; border-color: #4a90e2; }
     #grid1, #grid2 { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+    .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .page-header h1 { margin-bottom: 0; }
   </style>
 </head>
 <body>
   <a class="back" href="index.html">← Back to main demo</a>
-  <h1>Row Grouping</h1>
+  <div class="page-header">
+    <img src="../raccoon_tables_logo.png" alt="Raccoon Tables" height="52">
+    <h1>Row Grouping</h1>
+  </div>
   <p class="subtitle">
     Hierarchical row grouping with expand/collapse, aggregations (sum/avg/min/max),
     drag-to-group bar, and nested multi-level groups.

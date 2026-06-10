@@ -21,7 +21,6 @@ export interface GridItem extends RowData {
   $hasChildrenGroups?: boolean;
   $selected?: boolean;
   $agValues?: Record<string, unknown>;
-  $flashColumns?: Set<string>;
   amount?: number;
   childrenAmount?: number;
   expanded?: boolean;
@@ -59,6 +58,37 @@ export type FilterSign =
 
 /** Aggregation function for row grouping. */
 export type AggregationFn = 'sum' | 'avg' | 'min' | 'max' | ((values: number[]) => number);
+
+/** A single option in a lookup (dropdown) filter. */
+export interface LookupOption {
+  value: unknown;
+  name: string;
+}
+
+/**
+ * Lookup (dropdown) filter configuration for a column.
+ * When set, the filter bar shows a `<select>` instead of a text input.
+ * The filter always uses exact-match (`==`) comparison.
+ *
+ * Supply either `options` (static array) or `url` (AJAX).
+ */
+export interface LookupConfig {
+  /** Static list of options. Mutually exclusive with `url`. */
+  options?: LookupOption[];
+  /**
+   * AJAX URL. The response must be either:
+   *   - `Array<{value, name}>` — a flat array
+   *   - `{data: Array<{value, name}>}` — wrapped in a `data` key
+   *   - `{data: Array<{[valueField], [nameField]}>}` — custom field names
+   */
+  url?: string;
+  /** Property name on each AJAX record to use as the filter value. Default: `"value"`. */
+  valueField?: string;
+  /** Property name on each AJAX record to use as the display label. Default: `"name"`. */
+  nameField?: string;
+  /** Extra query params appended to the AJAX URL. */
+  params?: Record<string, string>;
+}
 
 /** Row group sort order. */
 export type RowGroupSort = 'asc-string' | 'desc-string' | 'asc-amount' | 'desc-amount';
@@ -100,14 +130,6 @@ export interface CellClickParams<T extends RowData = RowData> {
   column: ColumnDef<T>;
   rowIndex: number;
   grid: RaccoonGrid<T>;
-}
-
-/** Parameters for onChange (cell value change) callback. */
-export interface ChangeParams<T extends RowData = RowData> {
-  item: GridItem & Partial<T>;
-  column: ColumnDef<T>;
-  value: unknown;
-  oldValue: unknown;
 }
 
 /** Parameters for row selection change callback. */
@@ -197,9 +219,6 @@ export interface ColumnDef<T extends RowData = RowData> {
   draggable?: boolean;
   /** Show column header context menu. Default: true. Pass `false` to disable. */
   menuItems?: boolean;
-  /** Allow inline editing on dblclick. Default: false. */
-  editable?: boolean;
-
   // ---- Style ----
   /** Extra CSS class(es) on the header cell. */
   cls?: string;
@@ -214,21 +233,16 @@ export interface ColumnDef<T extends RowData = RowData> {
   /** Maximum fraction digits. */
   maxDecimal?: number;
 
-  // ---- Editor ----
-  /**
-   * Additional HTML input attributes applied to the default editor.
-   * e.g. `{ min: 0, max: 100, step: 1 }` for a number input.
-   */
-  editorOptions?: Record<string, unknown>;
-  /**
-   * Custom editor factory. Receives cell params, returns a DOM element.
-   * The element MUST implement `getValue(): unknown` for commit support.
-   */
-  editorComponent?: (params: CellParams<T>) => HTMLElement;
-
   // ---- Filter ----
   /** Input placeholder in filter bar. */
   filterPlaceholder?: string;
+  /**
+   * Lookup (dropdown) filter. Replaces the text input with a `<select>`.
+   * Useful for foreign-key columns: lets users pick a related record by name
+   * while filtering by the stored ID value.
+   * Always performs exact-match (`==`) comparison.
+   */
+  filterLookup?: LookupConfig;
 
   // ---- Row grouping ----
   /** Mark this column as a row group column. */
@@ -253,6 +267,8 @@ export interface ColumnDef<T extends RowData = RowData> {
   cellClsRules?: Record<string, (params: CellParams<T>) => boolean>;
   /** Dynamic cell inline style. */
   cellStyle?: (params: CellParams<T>) => Record<string, string>;
+  /** Allow cell content to overflow its boundaries (e.g. for action dropdowns). */
+  cellOverflow?: boolean;
 
   // ---- Internal (do not set) ----
   sort?: SortDir;
@@ -364,6 +380,58 @@ export interface ServerAdapterConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Theme customisation
+// ---------------------------------------------------------------------------
+
+/**
+ * CSS custom property overrides for the grid.
+ *
+ * Keys are exact CSS variable names (`--rt-*`). Any key supplied here is
+ * applied as an inline style on the root `.rt-wrap` element, so it wins over
+ * both `:root` defaults and the active theme block.
+ *
+ * Use this to extend an existing theme (override just a few tokens) or to
+ * build a fully custom theme (override all tokens while omitting `config.theme`).
+ *
+ * The index signature `[key: string]` allows arbitrary CSS custom properties
+ * beyond the known `--rt-*` set — useful for referencing grid variables from
+ * your own CSS.
+ */
+export interface ThemeVars {
+  '--rt-font-family'?: string;
+  '--rt-font-size'?: string;
+  '--rt-line-height'?: string;
+  '--rt-color-bg'?: string;
+  '--rt-color-bg-alt'?: string;
+  '--rt-color-bg-header'?: string;
+  '--rt-color-bg-group'?: string;
+  '--rt-color-bg-selected'?: string;
+  '--rt-color-bg-hover'?: string;
+  '--rt-color-bg-menu'?: string;
+  '--rt-color-border'?: string;
+  '--rt-color-border-focus'?: string;
+  '--rt-color-text'?: string;
+  '--rt-color-text-secondary'?: string;
+  '--rt-color-text-header'?: string;
+  '--rt-color-text-group'?: string;
+  '--rt-color-primary'?: string;
+  '--rt-color-primary-hover'?: string;
+  '--rt-color-danger'?: string;
+  '--rt-row-height'?: string;
+  '--rt-header-height'?: string;
+  '--rt-border-radius'?: string;
+  '--rt-transition'?: string;
+  '--rt-scrollbar-width'?: string;
+  '--rt-shadow-menu'?: string;
+  '--rt-sort-indicator-color'?: string;
+  '--rt-filter-active-color'?: string;
+  '--rt-cell-selected-bg'?: string;
+  '--rt-cell-selected-border'?: string;
+  '--rt-loading-overlay-bg'?: string;
+  [key: string]: string | undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Grid configuration
 // ---------------------------------------------------------------------------
 
@@ -389,10 +457,24 @@ export interface GridConfig<T extends RowData = RowData> {
   defaultColumnWidth?: number;
 
   // ---- Appearance ----
+  /** Visual theme. Default: 'raccoon'. */
+  theme?: 'raccoon' | 'material' | 'fluent' | 'tabler';
+  /**
+   * Color scheme. `true` = dark, `false` = light, `undefined` = follow OS preference.
+   * Default: undefined (auto).
+   */
+  dark?: boolean;
   /** Extra CSS class(es) on the root element. */
   cls?: string;
   /** Inline style applied to the root element. */
   style?: Record<string, string>;
+  /**
+   * CSS custom property overrides. Applied as inline styles on `.rt-wrap`,
+   * so they win over any theme. Override a handful of tokens to extend a
+   * theme, or set all of them to build a fully custom theme.
+   * See `ThemeVars` for the full list of known token names.
+   */
+  themeVars?: ThemeVars;
 
   // ---- Header ----
   /** Multi-level column group spans shown above the header row. */
@@ -432,10 +514,6 @@ export interface GridConfig<T extends RowData = RowData> {
   /** Server adapter config. When set, client-side sort/filter are disabled. */
   serverAdapter?: ServerAdapterConfig;
 
-  // ---- Editing ----
-  /** Flash cell background after value change. Default: true. */
-  flashChanges?: boolean;
-
   // ---- Selection ----
   /** Show a leading checkbox column for row selection. Default: false. */
   checkboxColumn?: boolean;
@@ -450,6 +528,16 @@ export interface GridConfig<T extends RowData = RowData> {
   /** Allow column hide via header menu. Default: true. */
   columnHide?: boolean;
 
+  // ---- Localisation ----
+  /**
+   * UI locale. Affects all built-in labels (pagination, filter menu, column menu, etc.).
+   * Supported values: 'en' (default), 'it', 'es', 'fr', 'de'.
+   * Pass a custom `RaccoonLocale` object via `localeOverride` to add your own language.
+   */
+  locale?: string;
+  /** Override individual locale strings without replacing the whole locale. */
+  localeOverride?: Partial<import('./utils/i18n.js').RaccoonLocale>;
+
   // ---- Virtual scroll tuning ----
   /** Extra rows rendered above/below viewport. Default: 10. */
   bufferRows?: number;
@@ -459,7 +547,6 @@ export interface GridConfig<T extends RowData = RowData> {
   onRowClick?: (params: RowClickParams<T>) => void;
   onRowDblClick?: (params: RowClickParams<T>) => void;
   onCellClick?: (params: CellClickParams<T>) => void;
-  onChange?: (params: ChangeParams<T>) => void;
   onRowSelectionChange?: (params: RowSelectionChangeParams<T>) => void;
   onColumnChange?: (params: ColumnChangeParams<T>) => void;
   onColumnResize?: (params: ColumnResizeParams<T>) => void;
@@ -513,6 +600,10 @@ export interface RaccoonGridPublicAPI<T extends RowData = RowData> {
   refresh(): void;
   destroy(): void;
 
+  // Theme
+  setTheme(theme: 'raccoon' | 'material' | 'fluent' | 'tabler', dark?: boolean): void;
+  setThemeVars(vars: ThemeVars | undefined): void;
+
   // Layout
   pinColumn(colId: string, pin: 'left' | 'right' | false): void;
   getLayout(): GridLayout;
@@ -549,6 +640,8 @@ export declare class RaccoonGrid<T extends RowData = RowData> implements Raccoon
   reConfigRowGroups(groups: string[]): void;
   refresh(): void;
   destroy(): void;
+  setTheme(theme: 'raccoon' | 'material' | 'fluent' | 'tabler', dark?: boolean): void;
+  setThemeVars(vars: ThemeVars | undefined): void;
   pinColumn(colId: string, pin: 'left' | 'right' | false): void;
   getLayout(): GridLayout;
   setLayout(layout: GridLayout): void;

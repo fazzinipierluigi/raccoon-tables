@@ -20,7 +20,7 @@ export const RowGroupBarMixin = {
 
     if (!this.store.rowGroups.length) {
       const emptyEl = div(cls.rowGroupBarEmpty);
-      emptyEl.textContent = this.config.rowGroupBarText ?? 'Drag a column header here to group by it';
+      emptyEl.textContent = this.config.rowGroupBarText ?? this._locale.rowGroupBarEmpty;
       this.rowGroupBarEl.appendChild(emptyEl);
     } else {
       for (const index of this.store.rowGroups) {

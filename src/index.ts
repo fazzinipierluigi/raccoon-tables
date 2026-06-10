@@ -32,8 +32,13 @@ export type {
   CellClickParams,
   RowSelectionChangeParams,
   ColumnChangeParams,
+  ThemeVars,
 } from './types.js';
 
 // Formatters (useful in custom render callbacks)
 export { formatCurrency, formatDate, formatNumber } from './utils/format.js';
 export { renderBoolean, renderOrder } from './utils/render.js';
+
+// Localisation
+export type { RaccoonLocale } from './utils/i18n.js';
+export { getLocale } from './utils/i18n.js';
