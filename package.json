@@ -51,6 +51,14 @@
     "SERVER-API.md",
     "LICENSE"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fazzinipierluigi/raccoon-tables"
+  },
+  "homepage": "https://github.com/fazzinipierluigi/raccoon-tables#readme",
+  "bugs": {
+    "url": "https://github.com/fazzinipierluigi/raccoon-tables/issues"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/jquery": "^3.5.32",
