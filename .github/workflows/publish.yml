@@ -30,7 +30,7 @@ jobs:
         run: npm run build
 
       - name: Sync version from tag
-        run: npm version "$GITHUB_REF_NAME" --no-git-tag-version
+        run: npm version "$GITHUB_REF_NAME" --no-git-tag-version --allow-same-version
         # sets package.json version to match the tag (e.g. 1.2.3 → 1.2.3)
 
       - name: Publish
