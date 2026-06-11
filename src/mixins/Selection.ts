@@ -39,10 +39,17 @@ export const SelectionMixin = {
     this.store.selectRowItem(item, selected);
     this._updateRowSelectedClass(item);
     this._updateSelectAllCheckbox();
+    const all = [...this.store.selectedItemsMap.values()];
     this.config.onRowSelectionChange?.({
       selected: selected ? [item] : [],
       deselected: selected ? [] : [item],
-      all: [...this.store.selectedItemsMap.values()],
+      all,
+    });
+    this._emit('raccoon:selectionChange', {
+      grid: this,
+      selected: selected ? [item] : [],
+      deselected: selected ? [] : [item],
+      all,
     });
   },
 
@@ -50,10 +57,17 @@ export const SelectionMixin = {
     this.store.selectAll(selected);
     this.renderVisibleRows();
     if (this.selectAllCheckbox) this.selectAllCheckbox.checked = selected;
+    const all = [...this.store.selectedItemsMap.values()];
     this.config.onRowSelectionChange?.({
       selected: selected ? this.store.data : [],
       deselected: selected ? [] : this.store.data,
-      all: [...this.store.selectedItemsMap.values()],
+      all,
+    });
+    this._emit('raccoon:selectionChange', {
+      grid: this,
+      selected: selected ? this.store.data : [],
+      deselected: selected ? [] : this.store.data,
+      all,
     });
   },
 

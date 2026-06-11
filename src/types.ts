@@ -556,6 +556,50 @@ export interface GridConfig<T extends RowData = RowData> {
 }
 
 // ---------------------------------------------------------------------------
+// DOM Event system
+// ---------------------------------------------------------------------------
+
+/**
+ * Map of all CustomEvents dispatched on the grid's root element (grid.el).
+ *
+ * Subscribe via: grid.el.addEventListener('raccoon:ready', (e) => { ... })
+ * Event detail is available as e.detail.
+ * Events prefixed raccoon:before are cancellable via e.preventDefault().
+ */
+export interface RaccoonEventMap {
+  /** Grid fully initialised and rendered. */
+  'raccoon:ready':            { grid: object };
+  /** Data has been loaded or replaced (setData / server response). */
+  'raccoon:dataLoaded':       { grid: object; total: number; source: 'client' | 'server' };
+  /** Grid refreshed (refresh() called). */
+  'raccoon:refresh':          { grid: object };
+  /** Fires before page changes. Call e.preventDefault() to cancel. */
+  'raccoon:beforePageChange': { grid: object; page: number; pageSize: number; currentPage: number };
+  /** Page has changed. */
+  'raccoon:pageChange':       { grid: object; page: number; pageSize: number };
+  /** Fires before a sort is applied. Call e.preventDefault() to cancel. */
+  'raccoon:beforeSort':       { grid: object; columnId: string; dir: SortDir; multi: boolean };
+  /** Sort has been applied (or cleared — sorters array will be empty). */
+  'raccoon:sort':             { grid: object; sorters: Array<{ columnId: string; dir: SortDir }> };
+  /** Fires before a filter is applied. Call e.preventDefault() to cancel. */
+  'raccoon:beforeFilter':     { grid: object; columnId: string; value: unknown; sign: FilterSign };
+  /** A filter has been applied or cleared. */
+  'raccoon:filter':           { grid: object; filters: Array<{ columnId: string; value: unknown; sign: FilterSign }> };
+  /** Row selection has changed. */
+  'raccoon:selectionChange':  { grid: object; selected: object[]; deselected: object[]; all: object[] };
+  /** A column has been resized (fires once on mouseup, not continuously). */
+  'raccoon:columnResize':     { grid: object; columnId: string; width: number };
+  /** A column has been drag-reordered. */
+  'raccoon:columnMove':       { grid: object; columnId: string; fromIndex: number; toIndex: number };
+  /** A column has been shown or hidden. */
+  'raccoon:columnVisibility': { grid: object; columnId: string; hidden: boolean };
+  /** A column has been pinned or unpinned. */
+  'raccoon:columnPin':        { grid: object; columnId: string; pin: 'left' | 'right' | undefined };
+  /** Row grouping configuration has changed. */
+  'raccoon:rowGroupChange':   { grid: object; rowGroups: string[] };
+}
+
+// ---------------------------------------------------------------------------
 // Public API interface
 // ---------------------------------------------------------------------------
 

@@ -33,6 +33,7 @@ export type {
   RowSelectionChangeParams,
   ColumnChangeParams,
   ThemeVars,
+  RaccoonEventMap,
 } from './types.js';
 
 // Formatters (useful in custom render callbacks)

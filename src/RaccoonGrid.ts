@@ -42,6 +42,7 @@ import type {
   GridLayout,
   GridColumnLayout,
   ThemeVars,
+  RaccoonEventMap,
 } from './types.js';
 import { Store } from './core/Store.js';
 import { Scroller } from './core/Scroller.js';
@@ -305,7 +306,24 @@ export class RaccoonGrid<T extends RowData = RowData> {
       this._renderPagination();
     }
 
+    this.config.onReady?.(this as unknown as Parameters<NonNullable<GridConfig<T>['onReady']>>[0]);
+    this._emit('raccoon:ready', { grid: this });
     return this;
+  }
+
+  // -------------------------------------------------------------------------
+  // Event dispatch
+  // -------------------------------------------------------------------------
+
+  _emit<K extends keyof RaccoonEventMap>(type: K, detail: RaccoonEventMap[K]): boolean {
+    if (!this.el) return true;
+    const ev = new CustomEvent<RaccoonEventMap[K]>(type, {
+      detail,
+      bubbles: true,
+      cancelable: type.startsWith('raccoon:before'),
+    });
+    this.el.dispatchEvent(ev);
+    return !ev.defaultPrevented;
   }
 
   // -------------------------------------------------------------------------
@@ -327,6 +345,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
       this.scroller.totalRows = this.store.getDisplayedDataTotal();
       this.renderVisibleRows();
     }
+    this._emit('raccoon:dataLoaded', { grid: this, total: this.store.data.length, source: 'client' });
   }
 
   getData(): T[] {
@@ -386,6 +405,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
     } else {
       this.renderVisibleRows();
     }
+    this._emit('raccoon:refresh', { grid: this });
   }
 
   setTheme(theme: 'raccoon' | 'material' | 'fluent' | 'tabler', dark?: boolean): void {
@@ -716,7 +736,13 @@ export class RaccoonGrid<T extends RowData = RowData> {
   _goToPage(page: number): void {
     const total = this._getPaginationTotal();
     const totalPages = Math.max(1, Math.ceil(total / this._pageSize));
-    this._currentPage = Math.max(1, Math.min(totalPages, page));
+    const targetPage = Math.max(1, Math.min(totalPages, page));
+
+    if (!this._emit('raccoon:beforePageChange', {
+      grid: this, page: targetPage, pageSize: this._pageSize, currentPage: this._currentPage,
+    })) return;
+
+    this._currentPage = targetPage;
 
     if (this.config.serverAdapter) {
       this._doServerRequest();
@@ -725,6 +751,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
     }
 
     this._renderPagination();
+    this._emit('raccoon:pageChange', { grid: this, page: this._currentPage, pageSize: this._pageSize });
   }
 
   _applyPagination(): void {
@@ -785,6 +812,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
       this.renderVisibleRows();
       if (this.config.pagination?.enabled) this._renderPagination();
       this.config.onServerResponse?.(resp);
+      this._emit('raccoon:dataLoaded', { grid: this, total: resp.total, source: 'server' });
     });
   }
 

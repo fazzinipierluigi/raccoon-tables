@@ -19,6 +19,8 @@ type Grid = RaccoonGrid<Record<string, unknown>>;
 
 export const FilterMixin = {
   filter(this: Grid, column: ColumnDef, value: unknown, sign: FilterSign = '=', onePerColumn = false): void {
+    if (!this._emit('raccoon:beforeFilter', { grid: this, columnId: column.id, value, sign })) return;
+
     if (this.config.serverAdapter) {
       if (!column.id) return;
       const existing = this.store.filters.find(f => f.column.id === column.id && (onePerColumn || f.sign === sign));
@@ -32,6 +34,7 @@ export const FilterMixin = {
       }
       this._triggerServerRequest();
       this.renderHeader();
+      this._emit('raccoon:filter', { grid: this, filters: this.store.filters.map(f => ({ columnId: f.column.id, value: f.value, sign: f.sign })) });
       return;
     }
 
@@ -45,6 +48,7 @@ export const FilterMixin = {
     this.scroller.scrollTo(0);
     this.renderVisibleRows();
     this._updateFilterActiveIndicators();
+    this._emit('raccoon:filter', { grid: this, filters: this.store.filters.map(f => ({ columnId: f.column.id, value: f.value, sign: f.sign })) });
   },
 
   clearFilter(this: Grid, column?: ColumnDef, sign?: FilterSign): void {
@@ -59,6 +63,7 @@ export const FilterMixin = {
       this._triggerServerRequest();
       this.renderHeader();
       this.updateFilterBarCells();
+      this._emit('raccoon:filter', { grid: this, filters: this.store.filters.map(f => ({ columnId: f.column.id, value: f.value, sign: f.sign })) });
       return;
     }
 
@@ -73,6 +78,7 @@ export const FilterMixin = {
     this.renderVisibleRows();
     this.renderHeader();
     this.updateFilterBarCells();
+    this._emit('raccoon:filter', { grid: this, filters: this.store.filters.map(f => ({ columnId: f.column.id, value: f.value, sign: f.sign })) });
   },
 
   // -------------------------------------------------------------------------

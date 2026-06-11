@@ -97,6 +97,7 @@ export const ColumnMixin = {
     this.renderHeader();
     this.renderVisibleRows();
     this.config.onColumnChange?.({ columns: this.allColumns });
+    this._emit('raccoon:columnVisibility', { grid: this, columnId: colId, hidden: false });
   },
 
   hideColumn(this: Grid, colId: string): void {
@@ -112,6 +113,7 @@ export const ColumnMixin = {
     this.renderHeader();
     this.renderVisibleRows();
     this.config.onColumnChange?.({ columns: this.allColumns });
+    this._emit('raccoon:columnVisibility', { grid: this, columnId: colId, hidden: true });
   },
 
   moveColumn(this: Grid, fromColId: string, toColId: string): void {
@@ -135,6 +137,7 @@ export const ColumnMixin = {
     this.renderHeader();
     this.renderVisibleRows();
     this.config.onColumnChange?.({ columns: this.allColumns });
+    this._emit('raccoon:columnMove', { grid: this, columnId: fromColId, fromIndex: fromIdx, toIndex: toIdx });
   },
 
   setColumnWidth(this: Grid, colId: string, width: number): void {
@@ -155,6 +158,7 @@ export const ColumnMixin = {
     this.clearRows();
     this.renderHeader();
     this.renderVisibleRows();
+    this._emit('raccoon:columnPin', { grid: this, columnId: colId, pin: col.pinned });
   },
 
   // Apply flex sizing to fill remaining space

@@ -18,6 +18,7 @@
 6. [Configuration Reference (GridConfig)](#6-configuration-reference-gridconfig)
 7. [Column Definition Reference (ColumnDef)](#7-column-definition-reference-columndef)
 8. [Public API Reference](#8-public-api-reference)
+   - [DOM Event System](#8b-dom-event-system)
 9. [Server-Side Mode](#9-server-side-mode)
 10. [Pagination](#10-pagination)
 11. [Row Grouping](#11-row-grouping)
@@ -731,6 +732,83 @@ grid.setLayout(layout: GridLayout) // restore state from a previously captured l
 ```
 
 See [Section 15](#15-layout-persistence-getlayout--setlayout) for the full `GridLayout` type and usage examples.
+
+---
+
+## 8b. DOM Event System
+
+Raccoon Tables fires `CustomEvent` instances on the grid's root element (`grid.el`) for every significant action. This lets external JavaScript subscribe to events without modifying the grid config.
+
+### Subscribing
+
+```javascript
+const grid = new RaccoonGrid({ ... });
+grid.render('#my-grid');
+
+grid.el.addEventListener('raccoon:ready', (e) => {
+  console.log('Grid ready', e.detail.grid);
+});
+
+grid.el.addEventListener('raccoon:sort', (e) => {
+  console.log('Sorted by', e.detail.sorters);
+});
+```
+
+Events also bubble up the DOM, so you can listen on any ancestor element:
+
+```javascript
+document.addEventListener('raccoon:pageChange', (e) => {
+  console.log('Page', e.detail.page, 'of', e.detail.pageSize);
+});
+```
+
+### Cancellable events
+
+Events prefixed `raccoon:before` are cancellable. Call `e.preventDefault()` to abort the action:
+
+```javascript
+grid.el.addEventListener('raccoon:beforePageChange', (e) => {
+  if (hasUnsavedChanges()) {
+    e.preventDefault(); // page will not change
+  }
+});
+
+grid.el.addEventListener('raccoon:beforeSort', (e) => {
+  if (e.detail.columnId === 'locked') {
+    e.preventDefault(); // sort will not be applied
+  }
+});
+```
+
+### Event reference
+
+| Event | Cancellable | `e.detail` fields |
+|-------|-------------|-------------------|
+| `raccoon:ready` | No | `grid` |
+| `raccoon:dataLoaded` | No | `grid`, `total`, `source` (`'client'`\|`'server'`) |
+| `raccoon:refresh` | No | `grid` |
+| `raccoon:beforePageChange` | **Yes** | `grid`, `page`, `pageSize`, `currentPage` |
+| `raccoon:pageChange` | No | `grid`, `page`, `pageSize` |
+| `raccoon:beforeSort` | **Yes** | `grid`, `columnId`, `dir`, `multi` |
+| `raccoon:sort` | No | `grid`, `sorters: [{columnId, dir}]` |
+| `raccoon:beforeFilter` | **Yes** | `grid`, `columnId`, `value`, `sign` |
+| `raccoon:filter` | No | `grid`, `filters: [{columnId, value, sign}]` |
+| `raccoon:selectionChange` | No | `grid`, `selected`, `deselected`, `all` |
+| `raccoon:columnResize` | No | `grid`, `columnId`, `width` |
+| `raccoon:columnMove` | No | `grid`, `columnId`, `fromIndex`, `toIndex` |
+| `raccoon:columnVisibility` | No | `grid`, `columnId`, `hidden` |
+| `raccoon:columnPin` | No | `grid`, `columnId`, `pin` (`'left'`\|`'right'`\|`undefined`) |
+| `raccoon:rowGroupChange` | No | `grid`, `rowGroups` |
+
+### TypeScript typing
+
+```typescript
+import type { RaccoonEventMap } from 'raccoon-tables';
+
+grid.el.addEventListener('raccoon:sort', (e: CustomEvent<RaccoonEventMap['raccoon:sort']>) => {
+  const { sorters } = e.detail;
+});
+```
 
 ---
 

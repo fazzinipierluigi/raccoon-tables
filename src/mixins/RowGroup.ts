@@ -70,6 +70,7 @@ export const RowGroupMixin = {
     if (this.config.rowGroupBar) {
       this.renderRowGroupBar();
     }
+    this._emit('raccoon:rowGroupChange', { grid: this, rowGroups: [...this.store.rowGroups] });
   },
 
   addGroupToBar(this: Grid, index: string): void {

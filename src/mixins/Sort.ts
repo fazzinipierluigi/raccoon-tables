@@ -16,8 +16,11 @@ type Grid = RaccoonGrid<Record<string, unknown>>;
 
 export const SortMixin = {
   sort(this: Grid, column: ColumnDef, dir: SortDir = 'ASC', multi = false): void {
+    if (!this._emit('raccoon:beforeSort', { grid: this, columnId: column.id, dir, multi })) return;
+
     if (this.config.serverAdapter) {
       this._serverSort(column, dir, multi);
+      this._emit('raccoon:sort', { grid: this, sorters: this.store.sorters.map(s => ({ columnId: s.column.id, dir: s.dir })) });
       return;
     }
 
@@ -32,6 +35,7 @@ export const SortMixin = {
     }
 
     this.renderHeader();
+    this._emit('raccoon:sort', { grid: this, sorters: this.store.sorters.map(s => ({ columnId: s.column.id, dir: s.dir })) });
   },
 
   clearSort(this: Grid, column?: ColumnDef, multi = false): void {
@@ -42,6 +46,7 @@ export const SortMixin = {
         this.store.sorters = [];
       }
       this._triggerServerRequest();
+      this._emit('raccoon:sort', { grid: this, sorters: [] });
       return;
     }
 
@@ -49,6 +54,7 @@ export const SortMixin = {
     this.scroller.totalRows = this.store.getDisplayedDataTotal();
     this.renderVisibleRows();
     this.renderHeader();
+    this._emit('raccoon:sort', { grid: this, sorters: this.store.sorters.map(s => ({ columnId: s.column.id, dir: s.dir })) });
   },
 
   _serverSort(this: Grid, column: ColumnDef, dir: SortDir, multi: boolean): void {

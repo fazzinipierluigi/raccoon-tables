@@ -157,6 +157,37 @@ const grid = new RaccoonGrid({
 6. Run `npm run typecheck && npm run build` — both must pass with zero errors.
 7. Add a demo entry in `demo/i18n.html` and open a PR. 🎉
 
+## DOM Events
+
+Every significant action dispatches a `CustomEvent` on `grid.el`, enabling zero-config subscriptions from external JavaScript:
+
+```javascript
+const grid = new RaccoonGrid({ ... });
+grid.render('#my-grid');
+
+// Fired once the grid is fully initialised
+grid.el.addEventListener('raccoon:ready', (e) => console.log('ready', e.detail));
+
+// Fired after data is loaded (client setData or server response)
+grid.el.addEventListener('raccoon:dataLoaded', (e) => {
+  console.log(`Loaded ${e.detail.total} rows from ${e.detail.source}`);
+});
+
+// Cancel a page change (e.g. unsaved-changes guard)
+grid.el.addEventListener('raccoon:beforePageChange', (e) => {
+  if (hasUnsavedChanges()) e.preventDefault();
+});
+```
+
+Events also **bubble** up the DOM so you can listen on any ancestor.
+
+| Cancellable | Events |
+|-------------|--------|
+| No  | `raccoon:ready`, `raccoon:dataLoaded`, `raccoon:refresh`, `raccoon:pageChange`, `raccoon:sort`, `raccoon:filter`, `raccoon:selectionChange`, `raccoon:columnResize`, `raccoon:columnMove`, `raccoon:columnVisibility`, `raccoon:columnPin`, `raccoon:rowGroupChange` |
+| **Yes** | `raccoon:beforePageChange`, `raccoon:beforeSort`, `raccoon:beforeFilter` |
+
+Full event reference and TypeScript types in [DOCUMENTATION.md § 8b](./DOCUMENTATION.md).
+
 ## Build
 
 ```bash

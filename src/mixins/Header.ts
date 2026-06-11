@@ -366,6 +366,9 @@ export const HeaderMixin = {
 
   onResizeMouseUp(this: Grid): void {
     document.body.classList.remove(cls.resizing);
+    if (this._resizeCol) {
+      this._emit('raccoon:columnResize', { grid: this, columnId: this._resizeCol.id, width: this._resizeCol.width ?? 0 });
+    }
     this._resizeCol = undefined;
     this._resizeHeaderCell = undefined;
     // Re-distribute remaining flex columns and do a clean re-render
