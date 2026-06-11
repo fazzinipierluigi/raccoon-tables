@@ -445,6 +445,16 @@ body.rt-resizing {
   background: none;
 }
 
+.rt-header-cell-menu-separator {
+  border: none;
+  border-top: 1px solid var(--rt-color-border);
+  margin: 4px 0;
+}
+
+.rt-header-cell-menu-item-show {
+  color: var(--rt-color-primary);
+}
+
 /* ============================================================
    Filter bar
    ============================================================ */
@@ -724,8 +734,11 @@ body.rt-resizing {
 }
 
 .rt-cell-checkbox {
+  display: flex;
+  align-items: center;
   justify-content: center;
   width: 40px;
+  flex-shrink: 0;
 }
 
 .rt-cell.rt-cell-overflow {

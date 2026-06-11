@@ -23,7 +23,8 @@
 11. [Row Grouping](#11-row-grouping)
 12. [Sorting](#12-sorting)
 13. [Filtering](#13-filtering)
-14. [Cell Selection](#15-cell-selection)
+14. [Cell Selection](#14-cell-selection)
+15. [Layout Persistence (getLayout / setLayout)](#15-layout-persistence-getlayout--setlayout)
 16. [Virtual Scrolling (Scroller)](#16-virtual-scrolling-scroller)
 17. [Store (Data Layer)](#17-store-data-layer)
 18. [jQuery Plugin](#18-jquery-plugin)
@@ -722,6 +723,15 @@ grid.refresh(): void       // re-render / re-fetch
 grid.destroy(): void       // disconnect ResizeObserver, cancel server requests, remove DOM
 ```
 
+### Layout
+
+```typescript
+grid.getLayout(): GridLayout       // serialise full grid state to a plain object
+grid.setLayout(layout: GridLayout) // restore state from a previously captured layout
+```
+
+See [Section 15](#15-layout-persistence-getlayout--setlayout) for the full `GridLayout` type and usage examples.
+
 ---
 
 ## 9. Server-Side Mode
@@ -827,6 +837,16 @@ rt-pagination
       rt-pagination-btn       (first/prev/next/last)
       rt-pagination-page-input
 ```
+
+### Pagination with row groups
+
+When both `pagination` and `rowGroups` are active, pagination operates on the **flat display list** (group header rows + expanded data rows). This matches DevExtreme DataGrid's default client-side behaviour:
+
+- Pagination total = `store.getDisplayedDataTotal()` — the total number of currently visible rows (group headers + data rows of expanded groups).
+- With all groups **collapsed**: only N group-header rows are in `displayedData`; pagination may show 1 page (e.g. 6 departments < 50 per page). This is correct — expand groups to show data rows and more pages.
+- Expanding a group adds its data rows to the flat list, updating the page count automatically.
+- The group badge shows the **total** item count for that group across all pages, not just the current page.
+- `expand()` / `collapse()` / `expandAll()` / `collapseAll()` all work with pagination via `_afterGroupChange`, which recalculates total rows and re-renders the pagination bar.
 
 ---
 
@@ -952,6 +972,99 @@ grid.selectionMap = Set<"rowIndex_colId">;  // fast lookup for cell class
 | Page Up/Down | Jump by visible page height |
 | Home/End | First/last column (End), first/last row (Ctrl+End) |
 | Ctrl+A | Select all cells |
+
+---
+
+## 15. Layout Persistence (getLayout / setLayout)
+
+The Layout API serialises the full visual state of a grid into a plain JSON object and restores it
+later — useful for localStorage persistence, user-saved views, or URL-based presets.
+
+### GridLayout type
+
+```typescript
+interface GridLayout {
+  columns: GridColumnLayout[];
+  sort?:       Array<{ columnId: string; dir: SortDir }>;
+  filters?:    Array<{ columnId: string; value: unknown; sign: FilterSign }>;
+  pagination?: { page: number; pageSize: number };
+  rowGroups?:  string[];   // column indexes being grouped, in hierarchy order
+}
+
+interface GridColumnLayout {
+  id:      string;
+  hidden:  boolean;
+  width?:  number;
+  pinned?: 'left' | 'right' | undefined;
+}
+```
+
+### getLayout()
+
+```typescript
+const layout: GridLayout = grid.getLayout();
+```
+
+Captures:
+- **columns** — current order (visible first, then hidden), `hidden` flag, `width`, `pinned` side.
+- **sort** — active sorters as `{ columnId, dir }` pairs. `undefined` when no sort is active.
+- **filters** — active filter conditions as `{ columnId, value, sign }` triples. `undefined` when no filter is active.
+- **pagination** — `{ page, pageSize }` when `config.pagination.enabled` is true. `undefined` otherwise.
+- **rowGroups** — ordered array of column `index` values being grouped. `undefined` when none.
+
+### setLayout(layout)
+
+```typescript
+grid.setLayout(layout);
+```
+
+Fully restores all captured state in one atomic operation:
+
+1. Applies per-column `width`, `hidden`, `pinned` from `layout.columns`.
+2. Reorders `allColumns` to match layout column order.
+3. Rebuilds `visibleColumns` (filtered, pin-sorted).
+4. Resets active sorters and filters.
+5. Restores sort (calls `store.reSort()`).
+6. Restores filters (calls `store.reFilter()`, which uses sorted data as input when sort is also active).
+7. Restores row groups via `store.reConfigRowGroups()`.
+8. Restores pagination page and page size.
+9. Re-renders header (sort indicators, pin icons), filter bar, rows, and pagination bar.
+
+### Saving to localStorage
+
+```javascript
+// Save
+const layout = grid.getLayout();
+localStorage.setItem('my-grid-layout', JSON.stringify(layout));
+
+// Restore
+const raw = localStorage.getItem('my-grid-layout');
+if (raw) grid.setLayout(JSON.parse(raw));
+```
+
+### Preset layouts
+
+```javascript
+const PRESETS = {
+  default: {
+    columns: cols.map(c => ({ id: c.id, hidden: false, width: c.width })),
+    pagination: { page: 1, pageSize: 25 },
+  },
+  sorted: {
+    columns: cols.map(c => ({ id: c.id, hidden: false, width: c.width })),
+    sort: [{ columnId: 'salary', dir: 'DESC' }],
+    pagination: { page: 1, pageSize: 25 },
+  },
+};
+grid.setLayout(PRESETS.sorted);
+```
+
+### Limitations
+
+- `setLayout` is client-side only — server mode (`config.serverAdapter`) ignores sort/filter
+  restoration since those are managed by the server.
+- `rowGroups` uses column `index` values (the data property path), not column `id` values.
+- Pagination state is only restored when `config.pagination.enabled` is `true`.
 
 ---
 

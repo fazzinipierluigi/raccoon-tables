@@ -35,6 +35,7 @@ export interface RaccoonLocale {
   sortDesc: string;
   clearSort: string;
   hideColumn: string;
+  showColumn: string;
   groupBy: string;
   removeGroup: string;
   pinLeft: string;
@@ -63,6 +64,7 @@ const LOCALES: Record<string, RaccoonLocale> = {
     sortDesc: 'Sort DESC',
     clearSort: 'Clear Sort',
     hideColumn: 'Hide Column',
+    showColumn: 'Show: ',
     groupBy: 'Group by this',
     removeGroup: 'Remove Group',
     pinLeft: 'Pin Left',
@@ -87,6 +89,7 @@ const LOCALES: Record<string, RaccoonLocale> = {
     sortDesc: 'Ordina DESC',
     clearSort: 'Rimuovi ordinamento',
     hideColumn: 'Nascondi colonna',
+    showColumn: 'Mostra: ',
     groupBy: 'Raggruppa per questo',
     removeGroup: 'Rimuovi gruppo',
     pinLeft: 'Fissa a sinistra',
@@ -111,6 +114,7 @@ const LOCALES: Record<string, RaccoonLocale> = {
     sortDesc: 'Ordenar DESC',
     clearSort: 'Quitar orden',
     hideColumn: 'Ocultar columna',
+    showColumn: 'Mostrar: ',
     groupBy: 'Agrupar por esto',
     removeGroup: 'Quitar grupo',
     pinLeft: 'Fijar izquierda',
@@ -135,6 +139,7 @@ const LOCALES: Record<string, RaccoonLocale> = {
     sortDesc: 'Trier DESC',
     clearSort: 'Supprimer le tri',
     hideColumn: 'Masquer la colonne',
+    showColumn: 'Afficher : ',
     groupBy: 'Regrouper par ceci',
     removeGroup: 'Supprimer le groupe',
     pinLeft: 'Épingler à gauche',
@@ -159,6 +164,7 @@ const LOCALES: Record<string, RaccoonLocale> = {
     sortDesc: 'Absteigend',
     clearSort: 'Sortierung aufheben',
     hideColumn: 'Spalte ausblenden',
+    showColumn: 'Anzeigen: ',
     groupBy: 'Hiernach gruppieren',
     removeGroup: 'Gruppe entfernen',
     pinLeft: 'Links anheften',

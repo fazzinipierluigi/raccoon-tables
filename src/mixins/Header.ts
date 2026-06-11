@@ -478,6 +478,25 @@ export const HeaderMixin = {
       menu.appendChild(itemEl);
     }
 
+    // Hidden columns — always show so they can be restored
+    const hiddenCols = this.allColumns.filter(c => c.hidden);
+    if (hiddenCols.length) {
+      const sep = document.createElement('div');
+      sep.classList.add(cls.headerCellMenuSeparator);
+      menu.appendChild(sep);
+
+      for (const hiddenCol of hiddenCols) {
+        const showEl = div(cls.headerCellMenuItem);
+        showEl.classList.add(cls.headerCellMenuItemShow);
+        showEl.textContent = loc.showColumn + (hiddenCol.text ?? hiddenCol.id);
+        showEl.addEventListener('click', () => {
+          this.showColumn(hiddenCol.id);
+          this.closeHeaderCellMenu();
+        });
+        menu.appendChild(showEl);
+      }
+    }
+
     // Position menu
     const rect = headerCell.getBoundingClientRect();
     menu.style.position = 'fixed';

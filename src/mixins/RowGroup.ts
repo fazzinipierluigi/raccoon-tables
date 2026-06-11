@@ -18,8 +18,7 @@ export const RowGroupMixin = {
     } else {
       this.store.expand(group);
     }
-    this.scroller.totalRows = this.store.getDisplayedDataTotal();
-    this.renderVisibleRows();
+    this._afterGroupChange();
   },
 
   collapse(this: Grid, group: string): void {
@@ -28,28 +27,45 @@ export const RowGroupMixin = {
     } else {
       this.store.collapse(group);
     }
-    this.scroller.totalRows = this.store.getDisplayedDataTotal();
-    this.renderVisibleRows();
+    this._afterGroupChange();
   },
 
   expandAll(this: Grid): void {
     this.store.expandAll();
-    this.scroller.totalRows = this.store.getDisplayedDataTotal();
-    this.renderVisibleRows();
+    this._afterGroupChange();
   },
 
   collapseAll(this: Grid): void {
     this.store.collapseAll();
-    this.scroller.totalRows = this.store.getDisplayedDataTotal();
-    this.renderVisibleRows();
+    this._afterGroupChange();
+  },
+
+  _afterGroupChange(this: Grid): void {
+    if (this.config.pagination?.enabled) {
+      const newTotal = this.store.getDisplayedDataTotal();
+      const maxPage = Math.max(1, Math.ceil(newTotal / this._pageSize));
+      this._currentPage = Math.min(this._currentPage, maxPage);
+      this._applyPagination();
+      this._renderPagination();
+    } else {
+      this.scroller.totalRows = this.store.getDisplayedDataTotal();
+      this.renderVisibleRows();
+    }
   },
 
   reConfigRowGroups(this: Grid, rowGroups: string[]): void {
     this.store.reConfigRowGroups(rowGroups);
-    this.scroller.totalRows = this.store.getDisplayedDataTotal();
-    this.scroller.scrollTo(0);
     this.renderHeader();
-    this.renderVisibleRows();
+
+    if (this.config.pagination?.enabled) {
+      this._currentPage = 1;
+      this._applyPagination();
+      this._renderPagination();
+    } else {
+      this.scroller.totalRows = this.store.getDisplayedDataTotal();
+      this.scroller.scrollTo(0);
+      this.renderVisibleRows();
+    }
 
     if (this.config.rowGroupBar) {
       this.renderRowGroupBar();

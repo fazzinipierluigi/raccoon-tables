@@ -25,7 +25,7 @@ export default defineConfig([
     platform: 'browser',
     esbuildOptions(options) {
       options.footer = {
-        js: '/* Raccoon Tables v1.0.0 - High-performance data grid */'
+        js: '/* Raccoon Tables v1.0.1 - High-performance data grid */'
       };
     }
   },

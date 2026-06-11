@@ -38,6 +38,8 @@ export const cls = {
   headerCellMenu:            'rt-header-cell-menu',
   headerCellMenuItem:        'rt-header-cell-menu-item',
   headerCellMenuItemDisabled:'rt-header-cell-menu-item-disabled',
+  headerCellMenuSeparator:   'rt-header-cell-menu-separator',
+  headerCellMenuItemShow:    'rt-header-cell-menu-item-show',
   headerCellResizeHandle:    'rt-header-cell-resize-handle',
   headerCellDragging:        'rt-header-cell-dragging',
   headerCellDropTarget:      'rt-header-cell-drop-target',

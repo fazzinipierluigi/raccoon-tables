@@ -1,6 +1,6 @@
 {
   "name": "raccoon-tables",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Raccoon Tables - High-performance data grid with client-side and server-side modes",
   "type": "module",
   "main": "./dist/raccoon-tables.cjs.js",
@@ -47,6 +47,8 @@
     "dist/",
     "styles/",
     "README.md",
+    "DOCUMENTATION.md",
+    "SERVER-API.md",
     "LICENSE"
   ],
   "license": "MIT",

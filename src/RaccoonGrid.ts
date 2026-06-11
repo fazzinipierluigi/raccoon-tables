@@ -116,6 +116,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
   // ---- pagination state ----
   _currentPage = 1;
   _pageSize: number;
+  _groupPageOffset = 0;
 
   // ---- touch state ----
   _touchStartY = 0;
@@ -136,6 +137,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
   /** True when no `height` config — grid scrolls with the page instead of internally. */
   _pageScrollMode = false;
   _windowScrollHandler: (() => void) | undefined;
+  _windowResizeHandler: (() => void) | undefined;
 
   // ---- debounced server request (created per-instance) ----
   _triggerServerRequest: () => void;
@@ -272,6 +274,14 @@ export class RaccoonGrid<T extends RowData = RowData> {
     this.initScrollListeners();
     this.initKeyNavigation();
     this.initColumnDrag();
+
+    // Window resize: redistribute flex columns and redraw visible rows
+    this._windowResizeHandler = () => {
+      if (this._pageScrollMode) this.scroller.viewHeight = window.innerHeight;
+      this.applyFlexColumns();
+      this.renderVisibleRows();
+    };
+    window.addEventListener('resize', this._windowResizeHandler);
 
     // Initial render
     this.renderHeader();
@@ -423,6 +433,10 @@ export class RaccoonGrid<T extends RowData = RowData> {
       window.removeEventListener('scroll', this._windowScrollHandler);
       this._windowScrollHandler = undefined;
     }
+    if (this._windowResizeHandler) {
+      window.removeEventListener('resize', this._windowResizeHandler);
+      this._windowResizeHandler = undefined;
+    }
     this.scroller.detach();
     this.serverAdapter?.cancel();
     this.el?.remove();
@@ -505,6 +519,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
         if (col) this.store.sorters.push({ column: col, dir: s.dir });
       }
       this.store.reSort();
+      this.store.prevAction = 'sort';
     }
 
     // 6. Apply filters
@@ -609,7 +624,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
   /** Total rows BEFORE pagination slice — used for pagination display and page count math. */
   _getPaginationTotal(): number {
     if (this.config.serverAdapter) return this.store.serverTotal;
-    // filteredData holds the pre-pagination filtered (and sorted) dataset
+    if (this.store.rowGroups.length) return this.store.getDisplayedDataTotal();
     return this.store.filteredData?.length ?? this.store.sortedData?.length ?? this.store.data.length;
   }
 
@@ -713,6 +728,21 @@ export class RaccoonGrid<T extends RowData = RowData> {
   }
 
   _applyPagination(): void {
+    this._groupPageOffset = 0;
+    if (this.store.rowGroups.length) {
+      // displayedData is the full flat group tree (group headers + expanded data rows).
+      // Paginate by rendering a window into this list via _groupPageOffset.
+      // This matches DevExtreme DataGrid: page count = ceil(displayedRows / pageSize),
+      // expanding a group grows the total and may add pages.
+      const total = this.store.getDisplayedDataTotal();
+      const start = (this._currentPage - 1) * this._pageSize;
+      this._groupPageOffset = start;
+      this.scroller.totalRows = Math.max(0, Math.min(this._pageSize, total - start));
+      this.scroller.scrollTo(0);
+      this.clearRows();
+      this.renderVisibleRows();
+      return;
+    }
     const all = this.store.filteredData ?? this.store.sortedData ?? this.store.data;
     const start = (this._currentPage - 1) * this._pageSize;
     this.store.displayedData = all.slice(start, start + this._pageSize);
@@ -792,6 +822,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
   updateFakeScroller(): void { throw new Error('mixin not applied'); }
   getColumnLeft(_col: ColumnDef): number { throw new Error('mixin not applied'); }
   onRowGroupExpanderClick(_item: GridItem): void { throw new Error('mixin not applied'); }
+  _afterGroupChange(): void { throw new Error('mixin not applied'); }
 
   renderHeader(): void { throw new Error('mixin not applied'); }
   renderGroupHeader(): void { throw new Error('mixin not applied'); }

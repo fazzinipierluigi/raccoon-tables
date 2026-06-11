@@ -1288,6 +1288,24 @@ export class Store {
     return out;
   }
 
+  /** All groups in sorted order regardless of expand state — used for pagination-slice grouping. */
+  getSortedGroupOrder(): string[] {
+    const out: string[] = [];
+    const lwg = this.levelsWithGroups ?? [];
+    const recurse = (levelGroups: string[], level: number) => {
+      for (const g of levelGroups) {
+        out.push(g);
+        if (level < lwg.length - 1) {
+          const nextContainer = (lwg[level + 1] as unknown as Record<string, Record<string, string[]>>)['0'];
+          if (nextContainer?.[g]) recurse(nextContainer[g], level + 1);
+        }
+      }
+    };
+    const root = (lwg[0] as unknown as Record<string, Record<string, string[]>>)?.['0']?.root ?? [];
+    recurse(root, 0);
+    return out;
+  }
+
   getSortedDisplayedGroupsForFiltering(): string[] {
     if (!this.levelsWithGroupsForFiltering?.length) return [];
     const out: string[] = [];

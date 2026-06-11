@@ -55,7 +55,7 @@ export const BodyMixin = {
     // Build fragment for new rows
     const frag = document.createDocumentFragment();
     for (let i = start; i <= end; i++) {
-      const item = this.store.getItemByRowIndex(i);
+      const item = this.store.getItemByRowIndex(i + (this._groupPageOffset ?? 0));
       if (!item) continue;
 
       const existingEl = existing.get(i);
@@ -69,6 +69,11 @@ export const BodyMixin = {
           existingEl.classList.toggle(cls.rowSelected, item.$selected === true);
           const cb = existingEl.querySelector<HTMLInputElement>(`.${cls.cellCheckbox} input`);
           if (cb) cb.checked = item.$selected === true;
+          // Sync group expander icon — expand/collapse changes item.expanded without row recreation
+          if (item.$isGroupRow) {
+            const expander = existingEl.querySelector<HTMLElement>(`.${cls.rowGroupExpander}`);
+            if (expander) expander.innerHTML = item.expanded ? svg.sortDesc : svg.chevronRight;
+          }
           continue;
         }
         existingEl.remove();
@@ -158,10 +163,10 @@ export const BodyMixin = {
     rowEl.style.width = `${totalW}px`;
 
     const indent = (item.$groupLevel ?? 0) * 16;
-    rowEl.style.paddingLeft = `${indent}px`;
 
-    // Expander icon
+    // Expander icon — indent applied here so the checkbox (if present) always sits at left:0
     const expanderEl = div(cls.rowGroupExpander);
+    expanderEl.style.marginLeft = `${indent}px`;
     expanderEl.innerHTML = item.expanded
       ? svg.sortDesc
       : svg.chevronRight;
@@ -209,6 +214,7 @@ export const BodyMixin = {
       input.type = 'checkbox';
       input.checked = item.$selected === true || item.selectedStatus === 'full';
       input.indeterminate = item.selectedStatus === 'partly';
+      input.addEventListener('click', (e) => e.stopPropagation());
       input.addEventListener('change', () => {
         this.onGroupRowCheckboxChange(item, input.checked);
       });
@@ -348,7 +354,7 @@ export const BodyMixin = {
   },
 
   updateFakeScroller(this: Grid): void {
-    const total = this.store.getDisplayedDataTotal();
+    const total = this.scroller.totalRows;
     const rowHeight = this.config.rowHeight ?? 32;
     const totalW = getTotalColumnsWidth(this.visibleColumns, !!this.config.checkboxColumn, this.config.defaultColumnWidth ?? 100);
 
@@ -392,9 +398,7 @@ export const BodyMixin = {
         ? this.store.collapse(group)
         : this.store.expand(group);
     }
-    item.expanded = !item.expanded;
-    this.scroller.totalRows = this.store.getDisplayedDataTotal();
-    this.renderVisibleRows();
+    this._afterGroupChange();
   },
 
   onRowClick(this: Grid, e: MouseEvent, item: GridItem, rowIndex: number, rowEl: HTMLElement): void {
