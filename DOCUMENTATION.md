@@ -454,14 +454,15 @@ The following strings are localised: pagination labels ("Rows per page", page in
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | `ColumnType` | `'string'` (default), `'number'`, `'boolean'`, `'currency'`, `'date'`, `'order'`. Drives sort algorithm, default cell renderer, and filter operator set. |
+| `type` | `ColumnType` | `'string'` (default), `'number'`, `'boolean'`, `'currency'`, `'date'`, `'datetime'`, `'order'`. Drives sort algorithm, default cell renderer, and filter operator set. |
 
 **Type behaviors**:
 - `string`: locale-aware alphabetical sort; contains/equals/regex filter operators.
 - `number`: `Float64Array` sort (fastest); numeric filter operators (`>`, `<`, `+`, `-`).
 - `boolean`: `Uint8Array` sort; true/false filter buttons; automatically renders a disabled checkbox — no `render` callback needed.
 - `currency`: same as `number` for sorting; rendered via `Intl.NumberFormat`.
-- `date`: rendered via `Date.toLocaleDateString`; sorted as string.
+- `date`: rendered via `Date.toLocaleDateString`; sorted as string; **filter bar shows a calendar date picker** with date-aware operators (Equals, After, Before, After or Equal, Before or Equal).
+- `datetime`: same as `date`; comparisons are always day-level (time component ignored in filters).
 - `order`: renders the 1-based row index; non-sortable.
 
 ### Size
@@ -818,7 +819,7 @@ When `serverAdapter` is configured, the grid operates in **server mode**:
 - Initial data load fires on `render()`.
 - Every sort/filter/pagination/grouping change fires a new AJAX request.
 - Local Store sort/filter algorithms are **skipped**.
-- `store.serverTotal` holds the total row count (for pagination).
+- `store.serverTotal` holds the total row count (for pagination); `-1` means unknown total.
 
 ### ServerAdapterConfig
 
@@ -864,23 +865,39 @@ Sent on every interaction:
 
 ```typescript
 {
-  data: RowData[];     // the page of rows
-  total: number;       // total matching rows (for pagination)
+  data: RowData[];      // the page of rows
+  total?: number;       // total matching rows for pagination (optional — see hasKnownLastPage)
   groups?: Record<string, { amount: number; agValues?: Record<string, unknown> }>;
 }
 ```
 
-If your API returns a different shape, use `parseResponse` to normalize it.
+If `total` is omitted or negative the grid operates in **unknown-total mode** (see below). If your API returns a different shape, use `parseResponse` to normalize it.
 
 **Fallback field names** (auto-tried without `parseResponse`):
 - Data: `data` → `rows` → `items`
 - Total: `total` → `count` → `totalCount`
+
+### Unknown total (hasKnownLastPage = false)
+
+When your API cannot efficiently compute the total row count, omit `total` from the response (or return a negative value). The grid adapts:
+
+- Info text shows `"1–25"` instead of `"1–25 of 847"`.
+- The **Next** button stays enabled unconditionally (no page count to bound it).
+- The **Last** button is hidden.
+- The numbered sliding-window is replaced with a plain current-page badge.
+
+```typescript
+// Server returns only data, no total
+const parseResponse = (raw) => ({ data: raw.rows });   // total omitted → unknown mode
+```
 
 ---
 
 ## 10. Pagination
 
 Client-side pagination slices the in-memory data array. Server-side pagination sends `start`/`limit` to the server.
+
+The pagination bar is **always visible** when `pagination.enabled = true`.
 
 ### Enabling
 
@@ -890,16 +907,33 @@ const grid = new RaccoonGrid({
   pagination: {
     enabled: true,
     pageSize: 25,
-    pageSizeOptions: [10, 25, 50, 100],
+    pageSizeOptions: [10, 25, 50, 100],  // page size selector dropdown
   },
 });
 ```
+
+### Page size selector
+
+When `pageSizeOptions` is provided, a dropdown appears on the left of the pagination bar. Changing the page size **automatically resets to page 1**.
+
+### Sliding-window page buttons
+
+Instead of a plain number input, the navigation area renders numbered page buttons with a sliding window of 4 around the current page, plus first and last pages always visible:
+
+```
+[«][‹]  [1] … [4][5][6][7] … [20]  [›][»]
+           ↑ ellipsis when gap > 1
+```
+
+- **≤ 7 pages**: all page numbers shown, no ellipsis.
+- **> 7 pages**: window of 4 centered on the current page; ellipsis inserted for gaps.
+- The active page button is highlighted with the primary accent color.
 
 ### Programmatic navigation (via internal methods)
 
 ```typescript
 grid._goToPage(3);          // go to page 3
-grid._pageSize = 50;        // change page size
+grid._pageSize = 50;        // change page size (call _applyPagination() + _renderPagination() after)
 grid._currentPage;          // read current page
 grid._renderPagination();   // re-render pagination bar
 ```
@@ -909,11 +943,13 @@ grid._renderPagination();   // re-render pagination bar
 ```
 rt-pagination
   rt-pagination-inner
-    rt-pagination-size-wrap   (page size selector)
-    rt-pagination-info        ("1–25 of 847")
+    rt-pagination-size-wrap       (page size selector, if pageSizeOptions set)
+    rt-pagination-info            ("1–25 of 847")
     rt-pagination-nav
-      rt-pagination-btn       (first/prev/next/last)
-      rt-pagination-page-input
+      rt-pagination-btn           (first / prev)
+      rt-pagination-page-num      (numbered page buttons, may have rt-pagination-btn--active)
+      rt-pagination-ellipsis      (… separator)
+      rt-pagination-btn           (next / last)
 ```
 
 ### Pagination with row groups
@@ -1426,6 +1462,9 @@ Applied automatically via `@media (prefers-color-scheme: dark)`. Force with `dar
 | `rt-cell-selected` | Cell in selection range |
 | `rt-cell-overflow` | Cell with `cellOverflow: true` — `overflow: visible; z-index: 10` |
 | `rt-pagination` | Pagination bar |
+| `rt-pagination-page-num` | Numbered page button |
+| `rt-pagination-btn--active` | Active (current) page button — accent background |
+| `rt-pagination-ellipsis` | `…` gap between page button groups |
 | `rt-search-bar` | Global search bar |
 | `rt-row-group-bar` | Drag-to-group bar |
 | `rt-loading` | Loading overlay (server mode) |
@@ -1468,7 +1507,7 @@ Fields prefixed `$` are internal. User data fields live alongside them (via `ext
 ### Filter System Types
 
 ```typescript
-type FilterSign = '=' | '!=' | '==' | '!==' | '>' | '<' | 'a_' | '_a' | 'regex' | 'empty' | '!empty' | '+' | '-' | 'in' | 'T' | 'F';
+type FilterSign = '=' | '!=' | '==' | '!==' | '>' | '<' | '>=' | '<=' | 'a_' | '_a' | 'regex' | 'empty' | '!empty' | '+' | '-' | 'in' | 'T' | 'F';
 
 interface Filter {
   column: ColumnDef;

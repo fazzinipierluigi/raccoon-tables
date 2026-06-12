@@ -36,3 +36,12 @@ export function formatDate(value: unknown, locale?: string): string {
   if (isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString(locale);
 }
+
+export function formatDatetime(value: unknown, locale?: string): string {
+  if (!value) return '';
+  const s = String(value);
+  // "YYYY-MM-DD HH:MM" — replace space with T for reliable parsing
+  const d = value instanceof Date ? value : new Date(s.replace(' ', 'T'));
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleDateString(locale) + ' ' + d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}

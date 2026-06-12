@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raccoon Tables — Full Feature Demo</title>
-  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <link rel="stylesheet" href="../styles/raccoon-tables.css?v=3">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
@@ -67,7 +67,7 @@
   <div id="grid-container"></div>
   <div id="status"></div>
 
-  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script src="../dist/raccoon-tables.iife.js?v=3"></script>
   <script>
     const { RaccoonGrid } = RaccoonTables;
 
@@ -86,6 +86,12 @@
         status: rand(STATUSES),
         startDate: new Date(2015 + Math.floor(Math.random() * 9), Math.floor(Math.random() * 12), 1)
           .toISOString().slice(0, 10),
+        lastLogin: (() => {
+          const d = new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000);
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          return `${d.toISOString().slice(0, 10)} ${hh}:${mm}`;
+        })(),
       };
     }
 
@@ -104,6 +110,7 @@
           cellCls: ({ value }) => value === 'active' ? 'status-active' : value === 'pending' ? 'status-pending' : 'status-inactive',
           cellStyle: ({ value }) => ({ fontWeight: value === 'active' ? 'bold' : 'normal' }) },
         { id: 'startDate',  index: 'startDate',  text: 'Start Date', type: 'date',     width: 110 },
+        { id: 'lastLogin',  index: 'lastLogin',  text: 'Last Login', type: 'datetime', width: 140 },
       ],
       data,
       height: 480,

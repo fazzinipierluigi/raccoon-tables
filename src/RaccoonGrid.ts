@@ -641,19 +641,43 @@ export class RaccoonGrid<T extends RowData = RowData> {
   // Pagination
   // -------------------------------------------------------------------------
 
-  /** Total rows BEFORE pagination slice — used for pagination display and page count math. */
+  /**
+   * Total rows BEFORE pagination slice.
+   * Returns -1 when the server did not supply a total (hasKnownLastPage = false).
+   */
   _getPaginationTotal(): number {
     if (this.config.serverAdapter) return this.store.serverTotal;
     if (this.store.rowGroups.length) return this.store.getDisplayedDataTotal();
     return this.store.filteredData?.length ?? this.store.sortedData?.length ?? this.store.data.length;
   }
 
+  /**
+   * Builds the sliding-window page button sequence.
+   * Returns a mix of page numbers (1-based) and 'ellipsis' sentinels.
+   * Always includes page 1 and totalPages; shows a window of 4 around current page.
+   */
+  _buildPageWindow(page: number, totalPages: number): Array<number | 'ellipsis'> {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const WINDOW = 4;
+    const startWin = Math.max(2, Math.min(totalPages - WINDOW, page - 1));
+    const endWin = startWin + WINDOW - 1;
+    const result: Array<number | 'ellipsis'> = [1];
+    if (startWin > 2) result.push('ellipsis');
+    for (let i = startWin; i <= endWin; i++) result.push(i);
+    if (endWin < totalPages - 1) result.push('ellipsis');
+    result.push(totalPages);
+    return result;
+  }
+
   _renderPagination(): void {
     if (!this.paginationEl) return;
     const pagination = this.config.pagination!;
     const total = this._getPaginationTotal();
+    const hasKnownTotal = total >= 0;
     const pageSize = this._pageSize;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const totalPages = hasKnownTotal ? Math.max(1, Math.ceil(total / pageSize)) : null;
     const page = this._currentPage;
 
     this.paginationEl.innerHTML = '';
@@ -687,40 +711,61 @@ export class RaccoonGrid<T extends RowData = RowData> {
     }
 
     // Info text
-    const start = total > 0 ? (page - 1) * pageSize + 1 : 0;
-    const end = Math.min(page * pageSize, total);
     const info = document.createElement('span');
     info.classList.add(cls.paginationInfo);
-    info.textContent = total > 0
-      ? formatPageInfo(this._locale.pageInfo, start, end, total)
-      : this._locale.zeroItems;
+    if (!hasKnownTotal || total > 0) {
+      const start = (page - 1) * pageSize + 1;
+      const end = hasKnownTotal ? Math.min(page * pageSize, total) : page * pageSize;
+      info.textContent = hasKnownTotal
+        ? formatPageInfo(this._locale.pageInfo, start, end, total)
+        : formatPageInfo(this._locale.pageInfoUnknownTotal, start, end);
+    } else {
+      info.textContent = this._locale.zeroItems;
+    }
     wrap.appendChild(info);
 
     // Navigation
     const navWrap = div(cls.paginationNav);
+
+    // First + Prev (always)
     navWrap.appendChild(this._createPageBtn(svg.pageFirst, () => this._goToPage(1), page === 1));
     navWrap.appendChild(this._createPageBtn(svg.pagePrev, () => this._goToPage(page - 1), page === 1));
 
-    const pageInput = document.createElement('input');
-    pageInput.type = 'number';
-    pageInput.value = String(page);
-    pageInput.min = '1';
-    pageInput.max = String(totalPages);
-    pageInput.classList.add(cls.paginationPageInput);
-    pageInput.addEventListener('change', () => {
-      const p = Math.max(1, Math.min(totalPages, Number(pageInput.value)));
-      this._goToPage(p);
-    });
-    navWrap.appendChild(pageInput);
+    if (hasKnownTotal && totalPages !== null) {
+      // Sliding window numbered buttons
+      for (const p of this._buildPageWindow(page, totalPages)) {
+        if (p === 'ellipsis') {
+          const el = document.createElement('span');
+          el.className = cls.paginationEllipsis;
+          el.textContent = '…';
+          navWrap.appendChild(el);
+        } else {
+          const pNum = p;
+          const btn = this._createPageBtn(String(pNum), () => this._goToPage(pNum), false);
+          btn.classList.add(cls.paginationPageNum);
+          if (pNum === page) {
+            btn.classList.add(cls.paginationPageActive);
+            btn.disabled = true;
+          }
+          navWrap.appendChild(btn);
+        }
+      }
+    } else {
+      // Unknown total: show current page badge only
+      const badge = document.createElement('span');
+      badge.className = `${cls.paginationPageNum} ${cls.paginationPageActive}`;
+      badge.textContent = String(page);
+      navWrap.appendChild(badge);
+    }
 
-    const ofSpan = document.createElement('span');
-    ofSpan.textContent = ` / ${totalPages}`;
-    navWrap.appendChild(ofSpan);
+    // Next + Last
+    const nextDisabled = hasKnownTotal && totalPages !== null && page === totalPages;
+    navWrap.appendChild(this._createPageBtn(svg.pageNext, () => this._goToPage(page + 1), nextDisabled));
+    if (hasKnownTotal && totalPages !== null) {
+      navWrap.appendChild(this._createPageBtn(svg.pageLast, () => this._goToPage(totalPages), page === totalPages));
+    }
 
-    navWrap.appendChild(this._createPageBtn(svg.pageNext, () => this._goToPage(page + 1), page === totalPages));
-    navWrap.appendChild(this._createPageBtn(svg.pageLast, () => this._goToPage(totalPages), page === totalPages));
     wrap.appendChild(navWrap);
-
     this.paginationEl.appendChild(wrap);
   }
 
@@ -735,8 +780,9 @@ export class RaccoonGrid<T extends RowData = RowData> {
 
   _goToPage(page: number): void {
     const total = this._getPaginationTotal();
-    const totalPages = Math.max(1, Math.ceil(total / this._pageSize));
-    const targetPage = Math.max(1, Math.min(totalPages, page));
+    const hasKnownTotal = total >= 0;
+    const totalPages = hasKnownTotal ? Math.max(1, Math.ceil(total / this._pageSize)) : Infinity;
+    const targetPage = Math.max(1, hasKnownTotal ? Math.min(totalPages, page) : page);
 
     if (!this._emit('raccoon:beforePageChange', {
       grid: this, page: targetPage, pageSize: this._pageSize, currentPage: this._currentPage,
@@ -806,13 +852,14 @@ export class RaccoonGrid<T extends RowData = RowData> {
     this.serverAdapter.requestImmediate(params, (resp: ServerResponse) => {
       this._hideLoading();
       this.store.data = resp.data as GridItem[];
-      this.store.serverTotal = resp.total;
+      // -1 sentinel = server did not return a total (hasKnownLastPage = false)
+      this.store.serverTotal = (resp.total !== undefined && resp.total >= 0) ? resp.total : -1;
       this.store.setIds();
       this.scroller.totalRows = resp.data.length; // visible rows = page of data
       this.renderVisibleRows();
       if (this.config.pagination?.enabled) this._renderPagination();
       this.config.onServerResponse?.(resp);
-      this._emit('raccoon:dataLoaded', { grid: this, total: resp.total, source: 'server' });
+      this._emit('raccoon:dataLoaded', { grid: this, total: resp.total ?? -1, source: 'server' });
     });
   }
 
@@ -876,6 +923,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
   showFilterSignList(_col: ColumnDef, _btn: HTMLElement, _cb: (sign: FilterSign) => void): void { throw new Error('mixin not applied'); }
   _createBooleanFilterSelect(_col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
   _createLookupFilterSelect(_col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
+  _createDateFilterField(_col: ColumnDef): HTMLElement { throw new Error('mixin not applied'); }
 
   prepareColumns(): void { throw new Error('mixin not applied'); }
   prepareColumn(_col: ColumnDef): ColumnDef { throw new Error('mixin not applied'); }

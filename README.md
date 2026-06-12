@@ -99,7 +99,7 @@ const grid = new RaccoonGrid({
     }),
     parseResponse: (raw) => ({
       data: raw.items as RowData[],
-      total: raw.totalCount as number,
+      total: raw.totalCount as number,  // omit if your API has no total count
     }),
   },
   pagination: { enabled: true, pageSize: 50 },

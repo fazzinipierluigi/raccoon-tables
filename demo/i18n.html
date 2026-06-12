@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raccoon Tables — Internationalisation (i18n)</title>
-  <link rel="stylesheet" href="../styles/raccoon-tables.css">
+  <link rel="stylesheet" href="../styles/raccoon-tables.css?v=3">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f4f6f9; padding: 24px; }
@@ -44,7 +44,7 @@
 
   <div id="grid"></div>
 
-  <script src="../dist/raccoon-tables.iife.js"></script>
+  <script src="../dist/raccoon-tables.iife.js?v=3"></script>
   <script>
     const { RaccoonGrid } = RaccoonTables;
 
@@ -52,15 +52,21 @@
     const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 
     function makeData(n) {
-      return Array.from({ length: n }, (_, i) => ({
-        id: i + 1,
-        name: `Employee ${i + 1}`,
-        department: rand(DEPTS),
-        salary: 30000 + Math.floor(Math.random() * 70000),
-        active: Math.random() > 0.3,
-        hireDate: new Date(2015 + Math.floor(Math.random() * 9), Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28))
-          .toISOString().slice(0, 10),
-      }));
+      return Array.from({ length: n }, (_, i) => {
+        const d = new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return {
+          id: i + 1,
+          name: `Employee ${i + 1}`,
+          department: rand(DEPTS),
+          salary: 30000 + Math.floor(Math.random() * 70000),
+          active: Math.random() > 0.3,
+          hireDate: new Date(2015 + Math.floor(Math.random() * 9), Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28))
+            .toISOString().slice(0, 10),
+          lastLogin: `${d.toISOString().slice(0, 10)} ${hh}:${mm}`,
+        };
+      });
     }
 
     let grid = null;
@@ -82,8 +88,9 @@
           { id: 'dept', index: 'department',  text: 'Department', type: 'string', width: 130,
             filterLookup: { options: DEPTS.map(d => ({ value: d, name: d })) } },
           { id: 'sal',  index: 'salary',      text: 'Salary',     type: 'currency', width: 110, currency: 'EUR' },
-          { id: 'act',  index: 'active',      text: 'Active',     type: 'boolean', width: 80 },
-          { id: 'hire', index: 'hireDate',    text: 'Hire Date',  type: 'string', width: 110 },
+          { id: 'act',  index: 'active',      text: 'Active',     type: 'boolean',  width: 80 },
+          { id: 'hire', index: 'hireDate',    text: 'Hire Date',  type: 'date',     width: 110 },
+          { id: 'login',index: 'lastLogin',   text: 'Last Login', type: 'datetime', width: 140 },
         ],
       });
 

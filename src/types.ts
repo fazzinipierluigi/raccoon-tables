@@ -32,7 +32,7 @@ export interface GridItem extends RowData {
 // ---------------------------------------------------------------------------
 
 /** Column value type. Controls sort algorithm, filter operators, and default render. */
-export type ColumnType = 'string' | 'number' | 'boolean' | 'currency' | 'date' | 'order';
+export type ColumnType = 'string' | 'number' | 'boolean' | 'currency' | 'date' | 'datetime' | 'order';
 
 /** Sort direction. */
 export type SortDir = 'ASC' | 'DESC';
@@ -41,10 +41,12 @@ export type SortDir = 'ASC' | 'DESC';
 export type FilterSign =
   | '='      // contains (default)
   | '!='     // not contains
-  | '=='     // equals (strict)
-  | '!=='    // not equals (strict)
-  | '>'      // greater than
-  | '<'      // less than
+  | '=='     // equals (strict); for date/datetime: same calendar day
+  | '!=='    // not equals (strict); for date/datetime: different calendar day
+  | '>'      // greater than; for date/datetime: strictly after
+  | '<'      // less than; for date/datetime: strictly before
+  | '>='     // greater than or equal; for date/datetime: same day or after
+  | '<='     // less than or equal; for date/datetime: same day or before
   | 'a_'     // starts with
   | '_a'     // ends with
   | 'regex'  // regular expression
@@ -347,8 +349,12 @@ export interface ServerRequestParams {
 export interface ServerResponse {
   /** Page of data rows. */
   data: RowData[];
-  /** Total rows matching current filters (used for pagination). */
-  total: number;
+  /**
+   * Total rows matching current filters (used for pagination).
+   * Omit or set to a negative value when the total is unknown — the grid will
+   * enable the Next button unconditionally and omit the "of N" info text.
+   */
+  total?: number;
   /** Optional server-computed group summaries. */
   groups?: Record<string, { amount: number; agValues?: Record<string, unknown> }>;
 }

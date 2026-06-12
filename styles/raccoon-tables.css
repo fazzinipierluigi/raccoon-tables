@@ -879,6 +879,37 @@ body.rt-column-dragging {
   cursor: default;
 }
 
+.rt-pagination-page-num {
+  min-width: 28px;
+  width: auto;
+  padding: 0 6px;
+  font-size: 12px;
+  font-family: var(--rt-font-family);
+}
+
+.rt-pagination-btn--active {
+  background: var(--rt-color-primary);
+  color: #fff;
+  border-color: var(--rt-color-primary);
+  opacity: 1;
+}
+
+.rt-pagination-btn--active:hover:not(:disabled) {
+  background: var(--rt-color-primary);
+  border-color: var(--rt-color-primary);
+}
+
+.rt-pagination-ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 28px;
+  font-size: 12px;
+  color: var(--rt-color-text-secondary);
+  user-select: none;
+}
+
 .rt-pagination-page-input {
   width: 44px;
   height: 28px;
@@ -905,6 +936,356 @@ body.rt-column-dragging {
 
 .rt-pagination-page-input[type=number] {
   -moz-appearance: textfield;
+}
+
+/* ============================================================
+   Date Picker
+   ============================================================ */
+
+.rt-datepicker-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.rt-datepicker-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0 24px 0 6px;
+  font-size: 12px;
+  font-family: var(--rt-font-family);
+  background: transparent;
+  color: var(--rt-color-text);
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color var(--rt-transition), background var(--rt-transition);
+}
+
+.rt-datepicker-input:focus,
+.rt-datepicker-input--open {
+  border-color: var(--rt-color-border-focus);
+  background: var(--rt-color-bg);
+}
+
+.rt-datepicker-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--rt-color-text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+
+.rt-datepicker-clear:hover {
+  color: var(--rt-color-text);
+  background: var(--rt-color-bg-hover);
+}
+
+/* ---- Calendar popup (rendered in document.body, fixed positioning) ---- */
+
+.rt-datepicker-popup {
+  position: fixed;
+  z-index: 10000;
+  width: 282px;
+  background: var(--rt-color-bg);
+  border: 1px solid var(--rt-color-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+  padding: 8px;
+  font-family: var(--rt-font-family);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* ---- Navigator ---- */
+
+.rt-dp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.rt-dp-nav-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rt-color-text);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background var(--rt-transition);
+}
+
+.rt-dp-nav-btn:hover {
+  background: var(--rt-color-bg-hover);
+}
+
+.rt-dp-caption {
+  flex: 1;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rt-color-text);
+  font-family: var(--rt-font-family);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  padding: 4px 8px;
+  transition: background var(--rt-transition);
+}
+
+.rt-dp-caption:hover {
+  background: var(--rt-color-bg-hover);
+}
+
+/* ---- Weekday labels ---- */
+
+.rt-dp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 2px;
+}
+
+.rt-dp-weekdays span {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rt-color-text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* ---- Day grid ---- */
+
+.rt-dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 2px;
+}
+
+.rt-dp-day {
+  justify-self: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--rt-color-text);
+  font-family: var(--rt-font-family);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+  transition: background var(--rt-transition), border-color var(--rt-transition), color var(--rt-transition), opacity var(--rt-transition);
+}
+
+.rt-dp-day:hover {
+  background: color-mix(in srgb, var(--rt-color-primary) 18%, transparent);
+}
+
+.rt-dp-day--other-month {
+  opacity: 0.38;
+}
+
+.rt-dp-day--today {
+  border-color: var(--rt-color-primary);
+  font-weight: 600;
+}
+
+.rt-dp-day--selected {
+  background: var(--rt-color-primary);
+  border-color: var(--rt-color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.rt-dp-day--selected:hover {
+  opacity: 0.88;
+}
+
+.rt-dp-day--focused:not(.rt-dp-day--selected) {
+  background: color-mix(in srgb, var(--rt-color-primary) 18%, transparent);
+  border-color: var(--rt-color-primary);
+}
+
+/* ---- Footer ---- */
+
+.rt-dp-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rt-color-border);
+}
+
+.rt-dp-today-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--rt-color-primary);
+  font-family: var(--rt-font-family);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 4px;
+  text-align: center;
+  transition: background var(--rt-transition);
+}
+
+.rt-dp-today-btn:hover {
+  background: color-mix(in srgb, var(--rt-color-primary) 12%, transparent);
+}
+
+/* ---- Time row (datetime mode only) ---- */
+
+.rt-dp-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+/*
+ * Spinner: CSS Grid — number on left spanning full height,
+ * ▲ and ▼ stacked on the right (NumberBox style).
+ * DOM order: up → part → down; grid placement reorders visually.
+ */
+.rt-dp-time-spinner {
+  display: grid;
+  grid-template-columns: 36px 18px;
+  grid-template-rows: 16px 16px;
+  border: 1px solid var(--rt-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color var(--rt-transition);
+}
+
+.rt-dp-time-spinner:focus-within {
+  border-color: var(--rt-color-border-focus);
+}
+
+.rt-dp-time-up {
+  grid-column: 2;
+  grid-row: 1;
+  border: none;
+  border-left: 1px solid var(--rt-color-border);
+  border-bottom: 1px solid var(--rt-color-border);
+  border-radius: 0;
+  background: var(--rt-color-bg-alt);
+  color: var(--rt-color-text-secondary);
+  cursor: pointer;
+  font-size: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  transition: background var(--rt-transition), color var(--rt-transition);
+}
+
+.rt-dp-time-down {
+  grid-column: 2;
+  grid-row: 2;
+  border: none;
+  border-left: 1px solid var(--rt-color-border);
+  border-radius: 0;
+  background: var(--rt-color-bg-alt);
+  color: var(--rt-color-text-secondary);
+  cursor: pointer;
+  font-size: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  transition: background var(--rt-transition), color var(--rt-transition);
+}
+
+.rt-dp-time-up:hover,
+.rt-dp-time-down:hover {
+  background: color-mix(in srgb, var(--rt-color-primary) 18%, transparent);
+  color: var(--rt-color-text);
+}
+
+.rt-dp-time-part {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  background: var(--rt-color-bg);
+  color: var(--rt-color-text);
+  font-family: var(--rt-font-family);
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  width: auto;
+  height: auto;
+  border: none;
+}
+
+.rt-dp-time-sep {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--rt-color-text-secondary);
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.rt-dp-confirm-btn {
+  border: 1px solid var(--rt-color-primary);
+  background: var(--rt-color-primary);
+  color: #fff;
+  font-family: var(--rt-font-family);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0 14px;
+  height: 32px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: opacity var(--rt-transition);
+}
+
+.rt-dp-confirm-btn:hover {
+  opacity: 0.88;
 }
 
 /* ============================================================

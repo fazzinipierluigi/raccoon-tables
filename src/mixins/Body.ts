@@ -19,7 +19,7 @@ import type { GridItem, ColumnDef, CellParams } from '../types.js';
 import { cls } from '../utils/cls.js';
 import { div } from '../utils/dom.js';
 import { svg } from '../utils/svg.js';
-import { formatCurrency, formatDate, formatNumber } from '../utils/format.js';
+import { formatCurrency, formatDate, formatDatetime, formatNumber } from '../utils/format.js';
 import { renderBoolean, renderOrder } from '../utils/render.js';
 
 type Grid = RaccoonGrid<Record<string, unknown>>;
@@ -329,6 +329,7 @@ export const BodyMixin = {
       case 'number': return String(value == null ? '' : formatNumber(value, params.maxDecimal ?? 0));
       case 'boolean': return renderBoolean(params);
       case 'date': return formatDate(value);
+      case 'datetime': return formatDatetime(value);
       case 'order': return renderOrder(params);
       default: return String(value ?? '');
     }

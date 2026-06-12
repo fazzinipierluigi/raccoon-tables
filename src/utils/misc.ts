@@ -93,10 +93,17 @@ export const TEXT_TO_SIGN: Record<string, string> = {
   'Regex': 'regex',
   'Greater Than': '>',
   'Less Than': '<',
+  'Greater or Equal': '>=',
+  'Less or Equal': '<=',
   'Positive': '+',
   'Negative': '-',
   'T': 'T',
   'F': 'F',
+  // Date-specific labels (map to same sign codes)
+  'After': '>',
+  'Before': '<',
+  'After or Equal': '>=',
+  'Before or Equal': '<=',
 };
 
 export const SIGN_TO_TEXT: Record<string, string> = {
@@ -112,6 +119,8 @@ export const SIGN_TO_TEXT: Record<string, string> = {
   'regex': 'Regex',
   '>': 'Greater Than',
   '<': 'Less Than',
+  '>=': 'Greater or Equal',
+  '<=': 'Less or Equal',
   '+': 'Positive',
   '-': 'Negative',
   'T': 'True',

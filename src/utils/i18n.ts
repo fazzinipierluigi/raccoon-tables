@@ -15,9 +15,13 @@ export interface RaccoonLocale {
   rowsPerPage: string;
   /** E.g. "{start}–{end} of {total}" — use literal {start}, {end}, {total} */
   pageInfo: string;
+  /** E.g. "{start}–{end}" — shown when server does not return a total count */
+  pageInfoUnknownTotal: string;
   zeroItems: string;
   prevPage: string;
   nextPage: string;
+  datepickerToday: string;
+  datepickerConfirm: string;
 
   // Search
   searchPlaceholder: string;
@@ -50,9 +54,12 @@ const LOCALES: Record<string, RaccoonLocale> = {
   en: {
     rowsPerPage: 'Rows per page: ',
     pageInfo: '{start}–{end} of {total}',
+    pageInfoUnknownTotal: '{start}–{end}',
     zeroItems: '0 items',
     prevPage: '‹',
     nextPage: '›',
+    datepickerToday: 'Today',
+    datepickerConfirm: 'Confirm',
     searchPlaceholder: 'Search…',
     filterTrue: 'True',
     filterFalse: 'False',
@@ -75,9 +82,12 @@ const LOCALES: Record<string, RaccoonLocale> = {
   it: {
     rowsPerPage: 'Righe per pagina: ',
     pageInfo: '{start}–{end} di {total}',
+    pageInfoUnknownTotal: '{start}–{end}',
     zeroItems: '0 elementi',
     prevPage: '‹',
     nextPage: '›',
+    datepickerToday: 'Oggi',
+    datepickerConfirm: 'Conferma',
     searchPlaceholder: 'Cerca…',
     filterTrue: 'Vero',
     filterFalse: 'Falso',
@@ -100,9 +110,12 @@ const LOCALES: Record<string, RaccoonLocale> = {
   es: {
     rowsPerPage: 'Filas por página: ',
     pageInfo: '{start}–{end} de {total}',
+    pageInfoUnknownTotal: '{start}–{end}',
     zeroItems: '0 elementos',
     prevPage: '‹',
     nextPage: '›',
+    datepickerToday: 'Hoy',
+    datepickerConfirm: 'Confirmar',
     searchPlaceholder: 'Buscar…',
     filterTrue: 'Verdadero',
     filterFalse: 'Falso',
@@ -125,9 +138,12 @@ const LOCALES: Record<string, RaccoonLocale> = {
   fr: {
     rowsPerPage: 'Lignes par page : ',
     pageInfo: '{start}–{end} sur {total}',
+    pageInfoUnknownTotal: '{start}–{end}',
     zeroItems: '0 élément',
     prevPage: '‹',
     nextPage: '›',
+    datepickerToday: "Aujourd'hui",
+    datepickerConfirm: 'Confirmer',
     searchPlaceholder: 'Rechercher…',
     filterTrue: 'Vrai',
     filterFalse: 'Faux',
@@ -150,9 +166,12 @@ const LOCALES: Record<string, RaccoonLocale> = {
   de: {
     rowsPerPage: 'Zeilen pro Seite: ',
     pageInfo: '{start}–{end} von {total}',
+    pageInfoUnknownTotal: '{start}–{end}',
     zeroItems: '0 Einträge',
     prevPage: '‹',
     nextPage: '›',
+    datepickerToday: 'Heute',
+    datepickerConfirm: 'Bestätigen',
     searchPlaceholder: 'Suchen…',
     filterTrue: 'Wahr',
     filterFalse: 'Falsch',
@@ -179,9 +198,9 @@ export function getLocale(locale?: string): RaccoonLocale {
   return LOCALES[locale] ?? LOCALES['en'];
 }
 
-export function formatPageInfo(pattern: string, start: number, end: number, total: number): string {
+export function formatPageInfo(pattern: string, start: number, end: number, total?: number): string {
   return pattern
     .replace('{start}', String(start))
     .replace('{end}', String(end))
-    .replace('{total}', String(total));
+    .replace('{total}', total !== undefined ? String(total) : '');
 }

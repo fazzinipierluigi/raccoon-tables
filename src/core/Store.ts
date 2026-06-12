@@ -50,6 +50,28 @@ function isValuelessSign(sign: FilterSign): boolean {
   return sign === 'T' || sign === 'F' || sign === 'empty' || sign === '!empty' || sign === '+' || sign === '-';
 }
 
+// Normalize any date-like value to start-of-day timestamp (strips time component).
+function dateStartMs(v: unknown): number {
+  let d: Date;
+  if (v instanceof Date) {
+    d = new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  } else {
+    // Handle "YYYY-MM-DD HH:MM" format by replacing space with T for ISO 8601
+    const parsed = new Date(String(v ?? '').replace(' ', 'T'));
+    if (isNaN(parsed.getTime())) return NaN;
+    d = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+  return d.getTime();
+}
+
+// Parse any date-like value to full timestamp (minute-level precision for datetime comparisons).
+function dateTimeMs(v: unknown): number {
+  if (v instanceof Date) return v.getTime();
+  // Handle "YYYY-MM-DD HH:MM" by replacing space with T
+  const d = new Date(String(v ?? '').replace(' ', 'T'));
+  return isNaN(d.getTime()) ? NaN : d.getTime();
+}
+
 // ---------------------------------------------------------------------------
 // Store interfaces
 // ---------------------------------------------------------------------------
@@ -763,25 +785,77 @@ export class Store {
         );
 
       case '==': // equals
+        if (column.type === 'date' || column.type === 'datetime') {
+          const filterMs = dateStartMs(value);
+          return data.filter(item => dateStartMs(getVal(item)) === filterMs);
+        }
         return data.filter(item =>
           String(getVal(item) ?? '').toLocaleLowerCase() === (normValue as string)
         );
 
       case '!==': // not equals
+        if (column.type === 'date' || column.type === 'datetime') {
+          const filterMs = dateStartMs(value);
+          return data.filter(item => dateStartMs(getVal(item)) !== filterMs);
+        }
         return data.filter(item =>
           String(getVal(item) ?? '').toLocaleLowerCase() !== (normValue as string)
         );
 
-      case '>': // greater than
+      case '>':
+        if (column.type === 'date') {
+          const filterMs = dateStartMs(value);
+          return data.filter(item => dateStartMs(getVal(item)) > filterMs);
+        }
+        if (column.type === 'datetime') {
+          const filterMs = dateTimeMs(value);
+          return data.filter(item => dateTimeMs(getVal(item)) > filterMs);
+        }
         return data.filter(item => {
           const v = getVal(item);
           return v !== null && v !== undefined && Number(v) > Number(value);
         });
 
-      case '<': // less than
+      case '<':
+        if (column.type === 'date') {
+          const filterMs = dateStartMs(value);
+          return data.filter(item => dateStartMs(getVal(item)) < filterMs);
+        }
+        if (column.type === 'datetime') {
+          const filterMs = dateTimeMs(value);
+          return data.filter(item => dateTimeMs(getVal(item)) < filterMs);
+        }
         return data.filter(item => {
           const v = getVal(item);
           return v !== null && v !== undefined && Number(v) < Number(value);
+        });
+
+      case '>=':
+        if (column.type === 'date') {
+          const filterMs = dateStartMs(value);
+          return data.filter(item => dateStartMs(getVal(item)) >= filterMs);
+        }
+        if (column.type === 'datetime') {
+          const filterMs = dateTimeMs(value);
+          return data.filter(item => dateTimeMs(getVal(item)) >= filterMs);
+        }
+        return data.filter(item => {
+          const v = getVal(item);
+          return v !== null && v !== undefined && Number(v) >= Number(value);
+        });
+
+      case '<=':
+        if (column.type === 'date') {
+          const filterMs = dateStartMs(value);
+          return data.filter(item => dateStartMs(getVal(item)) <= filterMs);
+        }
+        if (column.type === 'datetime') {
+          const filterMs = dateTimeMs(value);
+          return data.filter(item => dateTimeMs(getVal(item)) <= filterMs);
+        }
+        return data.filter(item => {
+          const v = getVal(item);
+          return v !== null && v !== undefined && Number(v) <= Number(value);
         });
 
       case 'a_': // starts with

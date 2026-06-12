@@ -14,6 +14,7 @@ import { div, input } from '../utils/dom.js';
 import { TEXT_TO_SIGN, SIGN_TO_TEXT } from '../utils/misc.js';
 import { svg, FILTER_SIGN_ICONS } from '../utils/svg.js';
 import { debounce } from '../utils/debounce.js';
+import { createDatePicker } from '../utils/datepicker.js';
 
 type Grid = RaccoonGrid<Record<string, unknown>>;
 
@@ -94,6 +95,11 @@ export const FilterMixin = {
     // Lookup columns → select driven by static options or AJAX
     if (col.filterLookup) {
       return this._createLookupFilterSelect(col);
+    }
+
+    // Date / Datetime columns → sign picker + calendar date picker
+    if (col.type === 'date' || col.type === 'datetime') {
+      return this._createDateFilterField(col);
     }
 
     // ---- Standard: sign picker + text input ----
@@ -319,6 +325,113 @@ export const FilterMixin = {
     setTimeout(() => document.addEventListener('mousedown', closeHandler), 0);
   },
 
+  _createDateFilterField(this: Grid, col: ColumnDef): HTMLElement {
+    const DATE_SIGNS: Array<{ text: string; sign: FilterSign }> = [
+      { text: 'Equals',         sign: '==' },
+      { text: 'Not Equals',     sign: '!==' },
+      { text: 'After',          sign: '>' },
+      { text: 'Before',         sign: '<' },
+      { text: 'After or Equal', sign: '>=' },
+      { text: 'Before or Equal',sign: '<=' },
+      { text: 'Empty',          sign: 'empty' },
+      { text: 'Not Empty',      sign: '!empty' },
+    ];
+    const VALUELESS: FilterSign[] = ['empty', '!empty'];
+
+    const wrapper = div(cls.filterFieldWrap);
+
+    const activeFilter = this.store.filters.find(f => f.column.id === col.id);
+    let currentSign: FilterSign = (activeFilter?.sign ?? '==') as FilterSign;
+    const activeValue = (activeFilter && !VALUELESS.includes(activeFilter.sign))
+      ? String(activeFilter.value ?? '') : null;
+
+    // Sign button
+    const signBtn = div(cls.filterFieldSign);
+    const activeText = DATE_SIGNS.find(s => s.sign === currentSign)?.text ?? 'Equals';
+    signBtn.title = activeText;
+    signBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="${FILTER_SIGN_ICONS[activeText] ?? ''}"/></svg>`;
+
+    // Track picker value locally for sign changes
+    let pickerValue: string | null = activeValue;
+
+    // Date / datetime picker
+    const picker = createDatePicker({
+      value: activeValue,
+      type: col.type as 'date' | 'datetime',
+      placeholder: col.filterPlaceholder ?? '',
+      locale: this.config.locale,
+      weekStart: 1,
+      propagateTheme: (el) => this._propagateTheme(el),
+      todayLabel: this._locale.datepickerToday ?? 'Today',
+      confirmLabel: this._locale.datepickerConfirm ?? 'Confirm',
+      onChange: (iso) => {
+        pickerValue = iso;
+        if (iso) {
+          this.filter(col, iso, currentSign, true);
+        } else {
+          this.clearFilter(col);
+        }
+      },
+    });
+
+    const isValueless = VALUELESS.includes(currentSign);
+    picker.style.display = isValueless ? 'none' : '';
+
+    signBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Build sign list in-place using showFilterSignList override
+      const list = div(cls.filterSignList);
+      this._propagateTheme(list);
+      document.body.appendChild(list);
+
+      for (const { text, sign } of DATE_SIGNS) {
+        const item = div(cls.filterSignItem);
+        const iconPath = FILTER_SIGN_ICONS[text] ?? '';
+        item.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="${iconPath}"/></svg><span>${text}</span>`;
+        item.addEventListener('click', () => {
+          currentSign = sign;
+          signBtn.title = text;
+          signBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="${FILTER_SIGN_ICONS[text] ?? ''}"/></svg>`;
+          list.remove();
+          document.removeEventListener('mousedown', closeList);
+          this._activeFilterSignList = undefined;
+
+          const valueless = VALUELESS.includes(sign);
+          picker.style.display = valueless ? 'none' : '';
+          if (valueless) {
+            this.filter(col, null, sign, true);
+          } else {
+            if (pickerValue) this.filter(col, pickerValue, sign, true);
+            else this.clearFilter(col);
+          }
+        });
+        list.appendChild(item);
+      }
+
+      const rect = signBtn.getBoundingClientRect();
+      list.style.position = 'fixed';
+      list.style.top = `${rect.bottom}px`;
+      list.style.zIndex = '9999';
+      const lw = list.offsetWidth;
+      list.style.left = `${Math.max(0, Math.min(rect.left, window.innerWidth - lw - 4))}px`;
+
+      this._activeFilterSignList = list;
+
+      const closeList = (ev: MouseEvent) => {
+        if (!list.contains(ev.target as Node) && ev.target !== signBtn) {
+          list.remove();
+          this._activeFilterSignList = undefined;
+          document.removeEventListener('mousedown', closeList);
+        }
+      };
+      setTimeout(() => document.addEventListener('mousedown', closeList), 0);
+    });
+
+    wrapper.appendChild(signBtn);
+    wrapper.appendChild(picker);
+    return wrapper;
+  },
+
   _getSignsForColumn(this: Grid, col: ColumnDef): Array<{ text: string; sign: FilterSign }> {
     const type = col.type ?? 'string';
 
@@ -327,6 +440,19 @@ export const FilterMixin = {
         { text: 'True', sign: 'T' },
         { text: 'False', sign: 'F' },
         { text: 'Clear', sign: '=' },
+      ];
+    }
+
+    if (type === 'date' || type === 'datetime') {
+      return [
+        { text: 'Equals',          sign: '==' },
+        { text: 'Not Equals',      sign: '!==' },
+        { text: 'After',           sign: '>' },
+        { text: 'Before',          sign: '<' },
+        { text: 'After or Equal',  sign: '>=' },
+        { text: 'Before or Equal', sign: '<=' },
+        { text: 'Empty',           sign: 'empty' },
+        { text: 'Not Empty',       sign: '!empty' },
       ];
     }
 
