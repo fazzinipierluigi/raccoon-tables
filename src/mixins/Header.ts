@@ -375,6 +375,7 @@ export const HeaderMixin = {
     this.applyFlexColumns();
     this.updateFakeScroller();
     this.clearRows();
+    this.renderHeader();
     this.renderVisibleRows();
   },
 
