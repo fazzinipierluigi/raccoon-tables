@@ -856,6 +856,7 @@ export class RaccoonGrid<T extends RowData = RowData> {
       this.store.serverTotal = (resp.total !== undefined && resp.total >= 0) ? resp.total : -1;
       this.store.setIds();
       this.scroller.totalRows = resp.data.length; // visible rows = page of data
+      this.clearRows(); // setIds resets idSeed to 0 → new items get same IDs as old DOM rows → must purge stale elements
       this.renderVisibleRows();
       if (this.config.pagination?.enabled) this._renderPagination();
       this.config.onServerResponse?.(resp);
